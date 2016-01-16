@@ -21,12 +21,10 @@ class Slideshow {
     window.addEventListener('resize', () => this.resize(), false)
     window.addEventListener('keydown', (e) => {
       switch (e.keyCode) {
-        case 37:
         case 38:
           return this.prevSlide()
 
         case 32:
-        case 39:
         case 40:
           return this.nextSlide()
 
@@ -36,7 +34,6 @@ class Slideshow {
           return
       }
     }, false)
-
   }
 
   nextSlide () {

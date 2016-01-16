@@ -3,10 +3,28 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "start": "budo index.js:bundle.js --onupdate 'cssnext index.css bundle.css'"
+    "start": "npm-run-all -p start:*",
+    "start:styles": "cssnext index.css bundle.css -w",
+    "start:script": "budo index.js:bundle.js"
   },
   "devDependencies": {
+    "babel-preset-es2015": "^6.3.13",
+    "babelify": "^7.2.0",
     "budo": "^7.1.0",
-    "cssnext": "^1.8.4"
+    "cssnext": "^1.8.4",
+    "npm-run-all": "^1.4.0"
+  },
+  "dependencies": {
+    "sliced": "^1.0.1"
+  },
+  "browserify": {
+    "transform": [
+      "babelify"
+    ]
+  },
+  "babel": {
+    "presets": [
+      "es2015"
+    ]
   }
 }

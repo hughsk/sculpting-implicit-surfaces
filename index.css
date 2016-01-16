@@ -1,6 +1,8 @@
 @import './css/variables.css';
 @import './css/reset.css';
 @import './css/keyframes.css';
+@import 'codemirror/lib/codemirror.css';
+@import './css/codemirror.css';
 
 body {
   position: absolute;
@@ -21,6 +23,18 @@ main {
 
 .editor-enabled {
   font-size: 13px;
+}
+
+#editor {
+  position: absolute;
+  top: 0; left: 50%;
+  right: 0; bottom: 0;
+  padding: 2rem;
+  display: none;
+}
+
+.editor-enabled #editor {
+  display: block;
 }
 
 .editor-enabled main {

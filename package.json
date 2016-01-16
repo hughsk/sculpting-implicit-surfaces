@@ -1,0 +1,12 @@
+{
+  "name": "implicits-talk",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "budo index.js:bundle.js --onupdate 'cssnext index.css bundle.css'"
+  },
+  "devDependencies": {
+    "budo": "^7.1.0",
+    "cssnext": "^1.8.4"
+  }
+}

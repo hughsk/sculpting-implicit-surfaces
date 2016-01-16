@@ -1,0 +1,9 @@
+@keyframes link {
+  0%, 100% {
+    transform: rotateZ(-3deg);
+  }
+
+  50% {
+    transform: rotateZ(+3deg);
+  }
+}

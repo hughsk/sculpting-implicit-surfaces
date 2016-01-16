@@ -34,11 +34,11 @@ export default (gl, editor) => {
     varying vec3 vnorm;
 
     void main() {
-      float explode = max(0.0, sin(time + position.y * 0.15 + sin(position.x)));
+      float explode = max(0.0, sin(time + position.y * 0.175 + sin(position.x * position.z) * 0.1) - 0.1);
 
       vnorm = normal;
 
-      gl_Position = proj * view * vec4(position + vnorm * explode * 20., 1);
+      gl_Position = proj * view * vec4(position + vnorm * explode * 25., 1);
     }
   `, `
     precision mediump float;

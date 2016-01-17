@@ -22,8 +22,9 @@ editor.editor.on('blur', function () {
 });
 
 slides.register('triangles', require('./src/slide-triangles.js').default);
+slides.register('primitives', require('./src/slide-primitives.js').default);
 
-},{"./src/editor":92,"./src/slide-triangles.js":93,"./src/slideshow":94}],2:[function(require,module,exports){
+},{"./src/editor":160,"./src/slide-primitives.js":162,"./src/slide-triangles.js":163,"./src/slideshow":164}],2:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -10774,6 +10775,68 @@ function parse(prop) {
 });
 
 },{}],10:[function(require,module,exports){
+
+/**
+ * Module dependencies.
+ */
+
+var now = require('date-now');
+
+/**
+ * Returns a function, that, as long as it continues to be invoked, will not
+ * be triggered. The function will be called after it stops being called for
+ * N milliseconds. If `immediate` is passed, trigger the function on the
+ * leading edge, instead of the trailing.
+ *
+ * @source underscore.js
+ * @see http://unscriptable.com/2009/03/20/debouncing-javascript-methods/
+ * @param {Function} function to wrap
+ * @param {Number} timeout in ms (`100`)
+ * @param {Boolean} whether to execute at the beginning (`false`)
+ * @api public
+ */
+
+module.exports = function debounce(func, wait, immediate){
+  var timeout, args, context, timestamp, result;
+  if (null == wait) wait = 100;
+
+  function later() {
+    var last = now() - timestamp;
+
+    if (last < wait && last > 0) {
+      timeout = setTimeout(later, wait - last);
+    } else {
+      timeout = null;
+      if (!immediate) {
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      }
+    }
+  };
+
+  return function debounced() {
+    context = this;
+    args = arguments;
+    timestamp = now();
+    var callNow = immediate && !timeout;
+    if (!timeout) timeout = setTimeout(later, wait);
+    if (callNow) {
+      result = func.apply(context, args);
+      context = args = null;
+    }
+
+    return result;
+  };
+};
+
+},{"date-now":11}],11:[function(require,module,exports){
+module.exports = Date.now || now
+
+function now() {
+    return new Date().getTime()
+}
+
+},{}],12:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -11073,7 +11136,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],11:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 module.exports = faceNormals
 
 function faceNormals(verts, output) {
@@ -11128,247 +11191,41 @@ function faceNormals(verts, output) {
   return output
 }
 
-},{}],12:[function(require,module,exports){
-var normalize = require('./normalize')
-var glType = require('gl-to-dtype')
+},{}],14:[function(require,module,exports){
+var createBuffer = require('gl-buffer')
 var createVAO = require('gl-vao')
-var dtype = require('dtype')
 
-module.exports = GLGeometry
+module.exports = GLBigTriangle
 
-function GLGeometry(gl) {
-  if (!(this instanceof GLGeometry))
-    return new GLGeometry(gl)
+function GLBigTriangle (gl) {
+  if (!(this instanceof GLBigTriangle)) {
+    return new GLBigTriangle(gl)
+  }
 
-  this._elementsType = 5123
-  this._elementsBytes = 2
-  this._attributes = []
-  this._dirty = true
-  this._length = 0
-  this._index = null
-  this._vao = null
-  this._keys = []
   this.gl = gl
+  this.vao = createVAO(gl, [{
+    size: 2,
+    type: gl.FLOAT,
+    buffer: createBuffer(gl, new Float32Array([
+      -1, -1, -1,
+      +4, +4, -1
+    ]))
+  }])
 }
 
-GLGeometry.prototype.dispose = function() {
-  for (var i = 0; i < this._attributes.length; i++) {
-    this._attributes[i].buffer.dispose()
-  }
-
-  this._attributes = []
-  this._keys = []
-  this._length = 0
-  this._dirty = true
-
-  if (this._index) {
-    this._index.dispose()
-    this._index = null
-  }
-
-  if (this._vao) {
-    this._vao.dispose()
-    this._vao = null
-  }
+GLBigTriangle.prototype.bind = function () {
+  this.vao.bind()
 }
 
-GLGeometry.prototype.faces = function faces(attr, opts) {
-  var size = opts && opts.size || 3
-  attr = attr.cells ? attr.cells : attr
-
-  this._dirty = true
-
-  if (this._index) {
-    this._index.dispose()
-  }
-
-  this._index = normalize(this.gl
-    , attr
-    , size
-    , this.gl.ELEMENT_ARRAY_BUFFER
-    , 'uint16'
-  )
-
-  this._length = this._index.length * size
-  this._index = this._index.buffer
-
-  return this
+GLBigTriangle.prototype.draw = function () {
+  this.gl.drawArrays(this.gl.TRIANGLES, 0, 3)
 }
 
-GLGeometry.prototype.attr = function attr(name, attr, opts) {
-  opts = opts || {}
-  this._dirty = true
-
-  var gl = this.gl
-  var first = !this._attributes.length
-  var size = opts.size || 3
-
-  var attribute = normalize(gl, attr, size, gl.ARRAY_BUFFER, 'float32')
-  if (!attribute) {
-    throw new Error(
-        'Unexpected attribute format: needs an ndarray, array, typed array, '
-      + 'gl-buffer or simplicial complex'
-    )
-  }
-
-  var buffer = attribute.buffer
-  var length = attribute.length
-  var index  = attribute.index
-
-  this._keys.push(name)
-  this._attributes.push({
-      size: size
-    , buffer: buffer
-  })
-
-  if (first) {
-    this._length = length
-  }
-
-  if (first && index) {
-    this._index = index
-  }
-
-  return this
+GLBigTriangle.prototype.unbind = function () {
+  this.vao.unbind()
 }
 
-GLGeometry.prototype.bind = function bind(shader) {
-  this.update()
-  this._vao.bind()
-
-  if (!this._keys) return
-  for (var i = 0; i < this._keys.length; i++) {
-    var attr = shader.attributes[this._keys[i]]
-    if (attr) attr.location = i
-  }
-
-  if (!shader) return
-  shader.bind()
-}
-
-GLGeometry.prototype.draw = function draw(mode, start, stop) {
-  start = typeof start === 'undefined' ? 0 : start
-  stop  = typeof stop  === 'undefined' ? this._length : stop
-  mode  = typeof mode  === 'undefined' ? this.gl.TRIANGLES : mode
-
-  this.update()
-
-  if (this._vao._useElements) {
-    this.gl.drawElements(mode, stop - start, this._elementsType, start * this._elementsBytes) // "2" is sizeof(uint16)
-  } else {
-    this.gl.drawArrays(mode, start, stop - start)
-  }
-}
-
-GLGeometry.prototype.unbind = function unbind() {
-  this.update()
-  this._vao.unbind()
-}
-
-GLGeometry.prototype.update = function update() {
-  if (!this._dirty) return
-  this._dirty = false
-  if (this._vao) this._vao.dispose()
-
-  this._vao = createVAO(
-      this.gl
-    , this._attributes
-    , this._index
-  )
-
-  this._elementsType = this._vao._elementsType
-  this._elementsBytes = dtype(
-    glType(this._elementsType) || 'array'
-  ).BYTES_PER_ELEMENT || 2
-}
-
-},{"./normalize":35,"dtype":15,"gl-to-dtype":28,"gl-vao":32}],13:[function(require,module,exports){
-var dtype = require('dtype')
-
-module.exports = pack
-
-function pack(arr, type) {
-  type = type || 'float32'
-
-  if (!arr[0] || !arr[0].length) {
-    return arr
-  }
-
-  var Arr = typeof type === 'string'
-    ? dtype(type)
-    : type
-
-  var dim = arr[0].length
-  var out = new Arr(arr.length * dim)
-  var k = 0
-
-  for (var i = 0; i < arr.length; i++)
-  for (var j = 0; j < dim; j++) {
-    out[k++] = arr[i][j]
-  }
-
-  return out
-}
-
-},{"dtype":14}],14:[function(require,module,exports){
-(function (Buffer){
-module.exports = function(dtype) {
-  switch (dtype) {
-    case 'int8':
-      return Int8Array
-    case 'int16':
-      return Int16Array
-    case 'int32':
-      return Int32Array
-    case 'uint8':
-      return Uint8Array
-    case 'uint16':
-      return Uint16Array
-    case 'uint32':
-      return Uint32Array
-    case 'float32':
-      return Float32Array
-    case 'float64':
-      return Float64Array
-    case 'array':
-      return Array
-    case 'uint8_clamped':
-      return Uint8ClampedArray
-    case 'generic':
-    case 'data':
-    case 'dataview':
-      return ArrayBuffer
-    case 'buffer':
-      if (typeof Buffer === "undefined") return ArrayBuffer
-      return Buffer
-  }
-}
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":2}],15:[function(require,module,exports){
-module.exports = function(dtype) {
-  switch (dtype) {
-    case 'int8':
-      return Int8Array
-    case 'int16':
-      return Int16Array
-    case 'int32':
-      return Int32Array
-    case 'uint8':
-      return Uint8Array
-    case 'uint16':
-      return Uint16Array
-    case 'uint32':
-      return Uint32Array
-    case 'float32':
-      return Float32Array
-    case 'float64':
-      return Float64Array
-    case 'array':
-      return Array
-  }
-}
-},{}],16:[function(require,module,exports){
+},{"gl-buffer":15,"gl-vao":30}],15:[function(require,module,exports){
 "use strict"
 
 var pool = require("typedarray-pool")
@@ -11522,7 +11379,7 @@ function createBuffer(gl, data, type, usage) {
 
 module.exports = createBuffer
 
-},{"ndarray":22,"ndarray-ops":17,"typedarray-pool":27}],17:[function(require,module,exports){
+},{"ndarray":21,"ndarray-ops":16,"typedarray-pool":26}],16:[function(require,module,exports){
 "use strict"
 
 var compile = require("cwise-compiler")
@@ -11985,7 +11842,7 @@ exports.equals = compile({
 
 
 
-},{"cwise-compiler":18}],18:[function(require,module,exports){
+},{"cwise-compiler":17}],17:[function(require,module,exports){
 "use strict"
 
 var createThunk = require("./lib/thunk.js")
@@ -12096,7 +11953,7 @@ function compileCwise(user_args) {
 
 module.exports = compileCwise
 
-},{"./lib/thunk.js":20}],19:[function(require,module,exports){
+},{"./lib/thunk.js":19}],18:[function(require,module,exports){
 "use strict"
 
 var uniq = require("uniq")
@@ -12452,7 +12309,7 @@ function generateCWiseOp(proc, typesig) {
 }
 module.exports = generateCWiseOp
 
-},{"uniq":21}],20:[function(require,module,exports){
+},{"uniq":20}],19:[function(require,module,exports){
 "use strict"
 
 // The function below is called when constructing a cwise function object, and does the following:
@@ -12540,7 +12397,7 @@ function createThunk(proc) {
 
 module.exports = createThunk
 
-},{"./compile.js":19}],21:[function(require,module,exports){
+},{"./compile.js":18}],20:[function(require,module,exports){
 "use strict"
 
 function unique_pred(list, compare) {
@@ -12599,7 +12456,7 @@ function unique(list, compare, sorted) {
 
 module.exports = unique
 
-},{}],22:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var iota = require("iota-array")
 var isBuffer = require("is-buffer")
 
@@ -12944,7 +12801,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
 
 module.exports = wrappedNDArrayCtor
 
-},{"iota-array":23,"is-buffer":24}],23:[function(require,module,exports){
+},{"iota-array":22,"is-buffer":23}],22:[function(require,module,exports){
 "use strict"
 
 function iota(n) {
@@ -12956,7 +12813,7 @@ function iota(n) {
 }
 
 module.exports = iota
-},{}],24:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -12975,7 +12832,7 @@ module.exports = function (obj) {
     ))
 }
 
-},{}],25:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -13181,7 +13038,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],26:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict"
 
 function dupe_array(count, value, i) {
@@ -13231,7 +13088,7 @@ function dupe(count, value) {
 }
 
 module.exports = dupe
-},{}],27:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 (function (global,Buffer){
 'use strict'
 
@@ -13448,25 +13305,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":25,"buffer":2,"dup":26}],28:[function(require,module,exports){
-module.exports = glToType
-function glToType (flag) {
-  switch (flag) {
-    case 5126: return 'float32'   // gl.FLOAT
-    case 5125: return 'uint32'    // gl.UNSIGNED_INT
-    case 5124: return 'int32'     // gl.INT
-    case 5123: return 'uint16'    // gl.UNSIGNED_SHORT
-    case 32819: return 'uint16'   // gl.UNSIGNED_SHORT_4_4_4_4
-    case 32820: return 'uint16'   // gl.UNSIGNED_SHORT_5_5_5_1
-    case 33635: return 'uint16'   // gl.UNSIGNED_SHORT_5_6_5
-    case 5122: return 'int16'     // gl.SHORT
-    case 5121: return 'uint8'     // gl.UNSIGNED_BYTE
-    case 5120: return 'int8'      // gl.BYTE
-    default: return null
-  }
-}
-
-},{}],29:[function(require,module,exports){
+},{"bit-twiddle":24,"buffer":2,"dup":25}],27:[function(require,module,exports){
 "use strict"
 
 function doBind(gl, elements, attributes) {
@@ -13521,7 +13360,7 @@ function doBind(gl, elements, attributes) {
 }
 
 module.exports = doBind
-},{}],30:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict"
 
 var bindAttribs = require("./do-bind.js")
@@ -13561,7 +13400,7 @@ function createVAOEmulated(gl) {
 }
 
 module.exports = createVAOEmulated
-},{"./do-bind.js":29}],31:[function(require,module,exports){
+},{"./do-bind.js":27}],29:[function(require,module,exports){
 "use strict"
 
 var bindAttribs = require("./do-bind.js")
@@ -13649,7 +13488,7 @@ function createVAONative(gl, ext) {
 }
 
 module.exports = createVAONative
-},{"./do-bind.js":29}],32:[function(require,module,exports){
+},{"./do-bind.js":27}],30:[function(require,module,exports){
 "use strict"
 
 var createVAONative = require("./lib/vao-native.js")
@@ -13669,7 +13508,297 @@ function createVAO(gl, attributes, elements, elementsType) {
 
 module.exports = createVAO
 
-},{"./lib/vao-emulated.js":30,"./lib/vao-native.js":31}],33:[function(require,module,exports){
+},{"./lib/vao-emulated.js":28,"./lib/vao-native.js":29}],31:[function(require,module,exports){
+var normalize = require('./normalize')
+var glType = require('gl-to-dtype')
+var createVAO = require('gl-vao')
+var dtype = require('dtype')
+
+module.exports = GLGeometry
+
+function GLGeometry(gl) {
+  if (!(this instanceof GLGeometry))
+    return new GLGeometry(gl)
+
+  this._elementsType = 5123
+  this._elementsBytes = 2
+  this._attributes = []
+  this._dirty = true
+  this._length = 0
+  this._index = null
+  this._vao = null
+  this._keys = []
+  this.gl = gl
+}
+
+GLGeometry.prototype.dispose = function() {
+  for (var i = 0; i < this._attributes.length; i++) {
+    this._attributes[i].buffer.dispose()
+  }
+
+  this._attributes = []
+  this._keys = []
+  this._length = 0
+  this._dirty = true
+
+  if (this._index) {
+    this._index.dispose()
+    this._index = null
+  }
+
+  if (this._vao) {
+    this._vao.dispose()
+    this._vao = null
+  }
+}
+
+GLGeometry.prototype.faces = function faces(attr, opts) {
+  var size = opts && opts.size || 3
+  attr = attr.cells ? attr.cells : attr
+
+  this._dirty = true
+
+  if (this._index) {
+    this._index.dispose()
+  }
+
+  this._index = normalize(this.gl
+    , attr
+    , size
+    , this.gl.ELEMENT_ARRAY_BUFFER
+    , 'uint16'
+  )
+
+  this._length = this._index.length * size
+  this._index = this._index.buffer
+
+  return this
+}
+
+GLGeometry.prototype.attr = function attr(name, attr, opts) {
+  opts = opts || {}
+  this._dirty = true
+
+  var gl = this.gl
+  var first = !this._attributes.length
+  var size = opts.size || 3
+
+  var attribute = normalize(gl, attr, size, gl.ARRAY_BUFFER, 'float32')
+  if (!attribute) {
+    throw new Error(
+        'Unexpected attribute format: needs an ndarray, array, typed array, '
+      + 'gl-buffer or simplicial complex'
+    )
+  }
+
+  var buffer = attribute.buffer
+  var length = attribute.length
+  var index  = attribute.index
+
+  this._keys.push(name)
+  this._attributes.push({
+      size: size
+    , buffer: buffer
+  })
+
+  if (first) {
+    this._length = length
+  }
+
+  if (first && index) {
+    this._index = index
+  }
+
+  return this
+}
+
+GLGeometry.prototype.bind = function bind(shader) {
+  this.update()
+  this._vao.bind()
+
+  if (!this._keys) return
+  for (var i = 0; i < this._keys.length; i++) {
+    var attr = shader.attributes[this._keys[i]]
+    if (attr) attr.location = i
+  }
+
+  if (!shader) return
+  shader.bind()
+}
+
+GLGeometry.prototype.draw = function draw(mode, start, stop) {
+  start = typeof start === 'undefined' ? 0 : start
+  stop  = typeof stop  === 'undefined' ? this._length : stop
+  mode  = typeof mode  === 'undefined' ? this.gl.TRIANGLES : mode
+
+  this.update()
+
+  if (this._vao._useElements) {
+    this.gl.drawElements(mode, stop - start, this._elementsType, start * this._elementsBytes) // "2" is sizeof(uint16)
+  } else {
+    this.gl.drawArrays(mode, start, stop - start)
+  }
+}
+
+GLGeometry.prototype.unbind = function unbind() {
+  this.update()
+  this._vao.unbind()
+}
+
+GLGeometry.prototype.update = function update() {
+  if (!this._dirty) return
+  this._dirty = false
+  if (this._vao) this._vao.dispose()
+
+  this._vao = createVAO(
+      this.gl
+    , this._attributes
+    , this._index
+  )
+
+  this._elementsType = this._vao._elementsType
+  this._elementsBytes = dtype(
+    glType(this._elementsType) || 'array'
+  ).BYTES_PER_ELEMENT || 2
+}
+
+},{"./normalize":54,"dtype":34,"gl-to-dtype":47,"gl-vao":51}],32:[function(require,module,exports){
+var dtype = require('dtype')
+
+module.exports = pack
+
+function pack(arr, type) {
+  type = type || 'float32'
+
+  if (!arr[0] || !arr[0].length) {
+    return arr
+  }
+
+  var Arr = typeof type === 'string'
+    ? dtype(type)
+    : type
+
+  var dim = arr[0].length
+  var out = new Arr(arr.length * dim)
+  var k = 0
+
+  for (var i = 0; i < arr.length; i++)
+  for (var j = 0; j < dim; j++) {
+    out[k++] = arr[i][j]
+  }
+
+  return out
+}
+
+},{"dtype":33}],33:[function(require,module,exports){
+(function (Buffer){
+module.exports = function(dtype) {
+  switch (dtype) {
+    case 'int8':
+      return Int8Array
+    case 'int16':
+      return Int16Array
+    case 'int32':
+      return Int32Array
+    case 'uint8':
+      return Uint8Array
+    case 'uint16':
+      return Uint16Array
+    case 'uint32':
+      return Uint32Array
+    case 'float32':
+      return Float32Array
+    case 'float64':
+      return Float64Array
+    case 'array':
+      return Array
+    case 'uint8_clamped':
+      return Uint8ClampedArray
+    case 'generic':
+    case 'data':
+    case 'dataview':
+      return ArrayBuffer
+    case 'buffer':
+      if (typeof Buffer === "undefined") return ArrayBuffer
+      return Buffer
+  }
+}
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":2}],34:[function(require,module,exports){
+module.exports = function(dtype) {
+  switch (dtype) {
+    case 'int8':
+      return Int8Array
+    case 'int16':
+      return Int16Array
+    case 'int32':
+      return Int32Array
+    case 'uint8':
+      return Uint8Array
+    case 'uint16':
+      return Uint16Array
+    case 'uint32':
+      return Uint32Array
+    case 'float32':
+      return Float32Array
+    case 'float64':
+      return Float64Array
+    case 'array':
+      return Array
+  }
+}
+},{}],35:[function(require,module,exports){
+arguments[4][15][0].apply(exports,arguments)
+},{"dup":15,"ndarray":41,"ndarray-ops":36,"typedarray-pool":46}],36:[function(require,module,exports){
+arguments[4][16][0].apply(exports,arguments)
+},{"cwise-compiler":37,"dup":16}],37:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"./lib/thunk.js":39,"dup":17}],38:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"dup":18,"uniq":40}],39:[function(require,module,exports){
+arguments[4][19][0].apply(exports,arguments)
+},{"./compile.js":38,"dup":19}],40:[function(require,module,exports){
+arguments[4][20][0].apply(exports,arguments)
+},{"dup":20}],41:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"dup":21,"iota-array":42,"is-buffer":43}],42:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],43:[function(require,module,exports){
+arguments[4][23][0].apply(exports,arguments)
+},{"dup":23}],44:[function(require,module,exports){
+arguments[4][24][0].apply(exports,arguments)
+},{"dup":24}],45:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],46:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"bit-twiddle":44,"buffer":2,"dup":26}],47:[function(require,module,exports){
+module.exports = glToType
+function glToType (flag) {
+  switch (flag) {
+    case 5126: return 'float32'   // gl.FLOAT
+    case 5125: return 'uint32'    // gl.UNSIGNED_INT
+    case 5124: return 'int32'     // gl.INT
+    case 5123: return 'uint16'    // gl.UNSIGNED_SHORT
+    case 32819: return 'uint16'   // gl.UNSIGNED_SHORT_4_4_4_4
+    case 32820: return 'uint16'   // gl.UNSIGNED_SHORT_5_5_5_1
+    case 33635: return 'uint16'   // gl.UNSIGNED_SHORT_5_6_5
+    case 5122: return 'int16'     // gl.SHORT
+    case 5121: return 'uint8'     // gl.UNSIGNED_BYTE
+    case 5120: return 'int8'      // gl.BYTE
+    default: return null
+  }
+}
+
+},{}],48:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],49:[function(require,module,exports){
+arguments[4][28][0].apply(exports,arguments)
+},{"./do-bind.js":48,"dup":28}],50:[function(require,module,exports){
+arguments[4][29][0].apply(exports,arguments)
+},{"./do-bind.js":48,"dup":29}],51:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"./lib/vao-emulated.js":49,"./lib/vao-native.js":50,"dup":30}],52:[function(require,module,exports){
 module.exports      = isTypedArray
 isTypedArray.strict = isStrictTypedArray
 isTypedArray.loose  = isLooseTypedArray
@@ -13710,7 +13839,7 @@ function isLooseTypedArray(arr) {
   return names[toString.call(arr)]
 }
 
-},{}],34:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 module.exports = function(arr) {
   if (!arr) return false
   if (!arr.dtype) return false
@@ -13718,7 +13847,7 @@ module.exports = function(arr) {
   return re.test(String(arr.constructor))
 }
 
-},{}],35:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 var pack         = require('array-pack-2d')
 var ista         = require('is-typedarray')
 var createBuffer = require('gl-buffer')
@@ -13807,7 +13936,7 @@ function convert(a, b) {
   return b
 }
 
-},{"array-pack-2d":13,"dtype":15,"gl-buffer":16,"is-typedarray":33,"isndarray":34}],36:[function(require,module,exports){
+},{"array-pack-2d":32,"dtype":34,"gl-buffer":35,"is-typedarray":52,"isndarray":53}],55:[function(require,module,exports){
 module.exports = adjoint;
 
 /**
@@ -13841,7 +13970,7 @@ function adjoint(out, a) {
     out[15] =  (a00 * (a11 * a22 - a12 * a21) - a10 * (a01 * a22 - a02 * a21) + a20 * (a01 * a12 - a02 * a11));
     return out;
 };
-},{}],37:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 module.exports = clone;
 
 /**
@@ -13870,7 +13999,7 @@ function clone(a) {
     out[15] = a[15];
     return out;
 };
-},{}],38:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 module.exports = copy;
 
 /**
@@ -13899,7 +14028,7 @@ function copy(out, a) {
     out[15] = a[15];
     return out;
 };
-},{}],39:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 module.exports = create;
 
 /**
@@ -13927,7 +14056,7 @@ function create() {
     out[15] = 1;
     return out;
 };
-},{}],40:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 module.exports = determinant;
 
 /**
@@ -13958,7 +14087,7 @@ function determinant(a) {
     // Calculate the determinant
     return b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
 };
-},{}],41:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 module.exports = fromQuat;
 
 /**
@@ -14006,7 +14135,7 @@ function fromQuat(out, q) {
 
     return out;
 };
-},{}],42:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 module.exports = fromRotationTranslation;
 
 /**
@@ -14060,7 +14189,7 @@ function fromRotationTranslation(out, q, v) {
     
     return out;
 };
-},{}],43:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 module.exports = frustum;
 
 /**
@@ -14097,7 +14226,7 @@ function frustum(out, left, right, bottom, top, near, far) {
     out[15] = 0;
     return out;
 };
-},{}],44:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 module.exports = identity;
 
 /**
@@ -14125,7 +14254,7 @@ function identity(out) {
     out[15] = 1;
     return out;
 };
-},{}],45:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 module.exports = {
   create: require('./create')
   , clone: require('./clone')
@@ -14151,7 +14280,7 @@ module.exports = {
   , lookAt: require('./lookAt')
   , str: require('./str')
 }
-},{"./adjoint":36,"./clone":37,"./copy":38,"./create":39,"./determinant":40,"./fromQuat":41,"./fromRotationTranslation":42,"./frustum":43,"./identity":44,"./invert":46,"./lookAt":47,"./multiply":48,"./ortho":49,"./perspective":50,"./perspectiveFromFieldOfView":51,"./rotate":52,"./rotateX":53,"./rotateY":54,"./rotateZ":55,"./scale":56,"./str":57,"./translate":58,"./transpose":59}],46:[function(require,module,exports){
+},{"./adjoint":55,"./clone":56,"./copy":57,"./create":58,"./determinant":59,"./fromQuat":60,"./fromRotationTranslation":61,"./frustum":62,"./identity":63,"./invert":65,"./lookAt":66,"./multiply":67,"./ortho":68,"./perspective":69,"./perspectiveFromFieldOfView":70,"./rotate":71,"./rotateX":72,"./rotateY":73,"./rotateZ":74,"./scale":75,"./str":76,"./translate":77,"./transpose":78}],65:[function(require,module,exports){
 module.exports = invert;
 
 /**
@@ -14207,7 +14336,7 @@ function invert(out, a) {
 
     return out;
 };
-},{}],47:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 var identity = require('./identity');
 
 module.exports = lookAt;
@@ -14298,7 +14427,7 @@ function lookAt(out, eye, center, up) {
 
     return out;
 };
-},{"./identity":44}],48:[function(require,module,exports){
+},{"./identity":63}],67:[function(require,module,exports){
 module.exports = multiply;
 
 /**
@@ -14341,7 +14470,7 @@ function multiply(out, a, b) {
     out[15] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
     return out;
 };
-},{}],49:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 module.exports = ortho;
 
 /**
@@ -14378,7 +14507,7 @@ function ortho(out, left, right, bottom, top, near, far) {
     out[15] = 1;
     return out;
 };
-},{}],50:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 module.exports = perspective;
 
 /**
@@ -14412,7 +14541,7 @@ function perspective(out, fovy, aspect, near, far) {
     out[15] = 0;
     return out;
 };
-},{}],51:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
 module.exports = perspectiveFromFieldOfView;
 
 /**
@@ -14454,7 +14583,7 @@ function perspectiveFromFieldOfView(out, fov, near, far) {
 }
 
 
-},{}],52:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 module.exports = rotate;
 
 /**
@@ -14519,7 +14648,7 @@ function rotate(out, a, rad, axis) {
     }
     return out;
 };
-},{}],53:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 module.exports = rotateX;
 
 /**
@@ -14564,7 +14693,7 @@ function rotateX(out, a, rad) {
     out[11] = a23 * c - a13 * s;
     return out;
 };
-},{}],54:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 module.exports = rotateY;
 
 /**
@@ -14609,7 +14738,7 @@ function rotateY(out, a, rad) {
     out[11] = a03 * s + a23 * c;
     return out;
 };
-},{}],55:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 module.exports = rotateZ;
 
 /**
@@ -14654,7 +14783,7 @@ function rotateZ(out, a, rad) {
     out[7] = a13 * c - a03 * s;
     return out;
 };
-},{}],56:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 module.exports = scale;
 
 /**
@@ -14686,7 +14815,7 @@ function scale(out, a, v) {
     out[15] = a[15];
     return out;
 };
-},{}],57:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 module.exports = str;
 
 /**
@@ -14701,7 +14830,7 @@ function str(a) {
                     a[8] + ', ' + a[9] + ', ' + a[10] + ', ' + a[11] + ', ' + 
                     a[12] + ', ' + a[13] + ', ' + a[14] + ', ' + a[15] + ')';
 };
-},{}],58:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 module.exports = translate;
 
 /**
@@ -14740,7 +14869,7 @@ function translate(out, a, v) {
 
     return out;
 };
-},{}],59:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 module.exports = transpose;
 
 /**
@@ -14790,7 +14919,7 @@ function transpose(out, a) {
     
     return out;
 };
-},{}],60:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 'use strict'
 
 var createUniformWrapper   = require('./lib/create-uniforms')
@@ -15026,7 +15155,7 @@ function createShader(
 
 module.exports = createShader
 
-},{"./lib/GLError":61,"./lib/create-attributes":62,"./lib/create-uniforms":63,"./lib/reflect":64,"./lib/runtime-reflect":65,"./lib/shader-cache":66}],61:[function(require,module,exports){
+},{"./lib/GLError":80,"./lib/create-attributes":81,"./lib/create-uniforms":82,"./lib/reflect":83,"./lib/runtime-reflect":84,"./lib/shader-cache":85}],80:[function(require,module,exports){
 function GLError (rawError, shortMessage, longMessage) {
     this.shortMessage = shortMessage || ''
     this.longMessage = longMessage || ''
@@ -15041,7 +15170,7 @@ GLError.prototype.name = 'GLError'
 GLError.prototype.constructor = GLError
 module.exports = GLError
 
-},{}],62:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 'use strict'
 
 module.exports = createAttributeWrapper
@@ -15306,7 +15435,7 @@ function createAttributeWrapper(
   return obj
 }
 
-},{"./GLError":61}],63:[function(require,module,exports){
+},{"./GLError":80}],82:[function(require,module,exports){
 'use strict'
 
 var coallesceUniforms = require('./reflect')
@@ -15499,7 +15628,7 @@ function createUniformWrapper(gl, wrapper, uniforms, locations) {
   }
 }
 
-},{"./GLError":61,"./reflect":64}],64:[function(require,module,exports){
+},{"./GLError":80,"./reflect":83}],83:[function(require,module,exports){
 'use strict'
 
 module.exports = makeReflectTypes
@@ -15557,7 +15686,7 @@ function makeReflectTypes(uniforms, useIndex) {
   }
   return obj
 }
-},{}],65:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
 'use strict'
 
 exports.uniforms    = runtimeUniforms
@@ -15637,7 +15766,7 @@ function runtimeAttributes(gl, program) {
   return result
 }
 
-},{}],66:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 'use strict'
 
 exports.shader   = getShaderReference
@@ -15775,7 +15904,7 @@ function createProgram(gl, vref, fref, attribs, locations) {
   return getCache(gl).getProgram(vref, fref, attribs, locations)
 }
 
-},{"./GLError":61,"gl-format-compiler-error":67,"weakmap-shim":83}],67:[function(require,module,exports){
+},{"./GLError":80,"gl-format-compiler-error":86,"weakmap-shim":102}],86:[function(require,module,exports){
 
 var sprintf = require('sprintf-js').sprintf;
 var glConstants = require('gl-constants/lookup');
@@ -15830,7 +15959,7 @@ function formatCompilerError(errLog, src, type) {
 }
 
 
-},{"add-line-numbers":68,"gl-constants/lookup":72,"glsl-shader-name":73,"sprintf-js":80}],68:[function(require,module,exports){
+},{"add-line-numbers":87,"gl-constants/lookup":91,"glsl-shader-name":92,"sprintf-js":99}],87:[function(require,module,exports){
 var padLeft = require('pad-left')
 
 module.exports = addLineNumbers
@@ -15848,7 +15977,7 @@ function addLineNumbers (string, start, delim) {
   }).join('\n')
 }
 
-},{"pad-left":69}],69:[function(require,module,exports){
+},{"pad-left":88}],88:[function(require,module,exports){
 /*!
  * pad-left <https://github.com/jonschlinkert/pad-left>
  *
@@ -15864,7 +15993,7 @@ module.exports = function padLeft(str, num, ch) {
   ch = typeof ch !== 'undefined' ? (ch + '') : ' ';
   return repeat(ch, num) + str;
 };
-},{"repeat-string":70}],70:[function(require,module,exports){
+},{"repeat-string":89}],89:[function(require,module,exports){
 /*!
  * repeat-string <https://github.com/jonschlinkert/repeat-string>
  *
@@ -15932,7 +16061,7 @@ function repeat(str, num) {
 var res = '';
 var cache;
 
-},{}],71:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 module.exports = {
   0: 'NONE',
   1: 'ONE',
@@ -16232,14 +16361,14 @@ module.exports = {
   37444: 'BROWSER_DEFAULT_WEBGL'
 }
 
-},{}],72:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 var gl10 = require('./1.0/numbers')
 
 module.exports = function lookupConstant (number) {
   return gl10[number]
 }
 
-},{"./1.0/numbers":71}],73:[function(require,module,exports){
+},{"./1.0/numbers":90}],92:[function(require,module,exports){
 var tokenize = require('glsl-tokenizer')
 var atob     = require('atob-lite')
 
@@ -16264,12 +16393,12 @@ function getName(src) {
   }
 }
 
-},{"atob-lite":74,"glsl-tokenizer":79}],74:[function(require,module,exports){
+},{"atob-lite":93,"glsl-tokenizer":98}],93:[function(require,module,exports){
 module.exports = function _atob(str) {
   return atob(str)
 }
 
-},{}],75:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 module.exports = tokenize
 
 var literals = require('./lib/literals')
@@ -16616,7 +16745,7 @@ function tokenize() {
   }
 }
 
-},{"./lib/builtins":76,"./lib/literals":77,"./lib/operators":78}],76:[function(require,module,exports){
+},{"./lib/builtins":95,"./lib/literals":96,"./lib/operators":97}],95:[function(require,module,exports){
 module.exports = [
     'gl_Position'
   , 'gl_PointSize'
@@ -16764,7 +16893,7 @@ module.exports = [
   , 'dFdy'
 ]
 
-},{}],77:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 module.exports = [
   // current
     'precision'
@@ -16859,7 +16988,7 @@ module.exports = [
   , 'using'
 ]
 
-},{}],78:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 module.exports = [
     '<<='
   , '>>='
@@ -16908,7 +17037,7 @@ module.exports = [
   , '}'
 ]
 
-},{}],79:[function(require,module,exports){
+},{}],98:[function(require,module,exports){
 var tokenize = require('./index')
 
 module.exports = tokenizeString
@@ -16923,7 +17052,7 @@ function tokenizeString(str) {
   return tokens
 }
 
-},{"./index":75}],80:[function(require,module,exports){
+},{"./index":94}],99:[function(require,module,exports){
 (function(window) {
     var re = {
         not_string: /[^s]/,
@@ -17133,7 +17262,7 @@ function tokenizeString(str) {
     }
 })(typeof window === "undefined" ? this : window);
 
-},{}],81:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 var hiddenStore = require('./hidden-store.js');
 
 module.exports = createStore;
@@ -17154,7 +17283,7 @@ function createStore() {
     };
 }
 
-},{"./hidden-store.js":82}],82:[function(require,module,exports){
+},{"./hidden-store.js":101}],101:[function(require,module,exports){
 module.exports = hiddenStore;
 
 function hiddenStore(obj, key) {
@@ -17172,7 +17301,7 @@ function hiddenStore(obj, key) {
     return store;
 }
 
-},{}],83:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 // Original - @Gozola. 
 // https://gist.github.com/Gozala/1269991
 // This is a reimplemented version (with a few bug fixes).
@@ -17202,7 +17331,1553 @@ function weakMap() {
     }
 }
 
-},{"./create-store.js":81}],84:[function(require,module,exports){
+},{"./create-store.js":100}],103:[function(require,module,exports){
+var detective = require('glslify-detective')
+var equals    = require('shallow-equals')
+var bundle    = require('glslify-bundle')
+var Emitter   = require('events/')
+var xhr       = require('xhr')
+
+module.exports = Client
+
+function Client(getTree) {
+  var depsCache = []
+  var treeCache = []
+  var running
+
+  return update
+
+  function update(src, done) {
+    var deps = detective(src)
+
+    // Handle parallel requests by queuing them
+    // up in the order that they're made. It's
+    // recommended you throttle these requests
+    // as much as possible first though :)
+    if (running) {
+      return running.once('ready', function() {
+        setTimeout(function() {
+          update(src, done)
+        })
+      })
+    }
+
+    // Reuse the local dependency tree if possible: this
+    // saves us time making requests to the server, speeding
+    // up rebuilds to ~10ms.
+    if (treeCache.length && equals(deps, depsCache)) {
+      treeCache[0].source = src
+      return done(null, bundle(treeCache))
+    }
+
+    running = new Emitter
+    running.setMaxListeners(Infinity)
+
+    getTree(src, function(err, tree) {
+      if (err) {
+        running.emit('ready')
+        running = null
+        return done(err)
+      }
+
+      depsCache = deps
+      treeCache = tree
+      treeCache[0].source = src
+
+      running.emit('ready')
+
+      done(running = null, bundle(treeCache))
+    })
+  }
+}
+
+},{"events/":12,"glslify-bundle":104,"glslify-detective":125,"shallow-equals":132,"xhr":133}],104:[function(require,module,exports){
+/*eslint-disable no-redeclare */
+
+var hash = require('murmurhash-js/murmurhash3_gc')
+var trim = require('glsl-token-whitespace-trim')
+var tokenize = require('glsl-tokenizer/string')
+var inject = require('glsl-inject-defines')
+var defines = require('glsl-token-defines')
+var descope = require('glsl-token-descope')
+var string = require('glsl-token-string')
+var scope = require('glsl-token-scope')
+var depth = require('glsl-token-depth')
+var topoSort = require('./lib/topo-sort')
+var copy = require('shallow-copy')
+
+module.exports = function (deps) {
+  return inject(Bundle(deps).src, {
+    GLSLIFY: 1
+  })
+}
+
+function Bundle (deps) {
+  if (!(this instanceof Bundle)) return new Bundle(deps)
+
+  // Reorder dependencies topologically
+  deps = topoSort(deps)
+
+  this.depList = deps
+  this.depIndex = indexBy(deps, 'id')
+  this.exported = {}
+  this.cache = {}
+  this.varCounter = 0
+
+  this.src = []
+
+  for (var i = 0; i < deps.length; i++) {
+    this.preprocess(deps[i])
+  }
+
+  for (var i = 0; i < deps.length; i++) {
+    if (deps[i].entry) {
+      this.src = this.src.concat(this.bundle(deps[i]))
+    }
+  }
+
+  this.src = string(trim(this.src))
+}
+
+var proto = Bundle.prototype
+
+proto.preprocess = function (dep) {
+  var tokens = tokenize(dep.source)
+  var imports = []
+  var exports = null
+
+  depth(tokens)
+  scope(tokens)
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type !== 'preprocessor') continue
+    if (!glslifyPreprocessor(token.data)) continue
+
+    var exported = glslifyExport(token.data)
+    var imported = glslifyImport(token.data)
+
+    if (exported) {
+      exports = exported[1]
+      tokens.splice(i--, 1)
+    } else if (imported) {
+      var name = imported[1]
+      var maps = imported[2].split(/\s?,\s?/g)
+      var path = maps.shift()
+        .trim()
+        .replace(/^'|'$/g, '')
+        .replace(/^"|"$/g, '')
+      var target = this.depIndex[dep.deps[path]]
+      imports.push({
+        name: name,
+        path: path,
+        target: target,
+        maps: toMapping(maps),
+        index: i
+      })
+      tokens.splice(i--, 1)
+    }
+  }
+
+  var eof = tokens[tokens.length - 1]
+  if (eof && eof.type === 'eof') {
+    tokens.pop()
+  }
+
+  if (dep.entry) {
+    exports = exports || 'main'
+  }
+
+  if (!exports) {
+    throw new Error(dep.file + ' does not export any symbols')
+  }
+
+  dep.parsed = {
+    tokens: tokens,
+    imports: imports,
+    exports: exports
+  }
+}
+
+proto.bundle = function (entry) {
+  var resolved = {}
+  var result = resolve(entry, [])[1]
+
+  return result
+
+  function resolve (dep, bindings) {
+    // Compute suffix for module
+    bindings.sort()
+    var ident = bindings.join(':') + ':' + dep.id
+    var suffix = '_' + hash(ident)
+
+    if (dep.entry) {
+      suffix = ''
+    }
+
+    // Test if export is already resolved
+    var exportName = dep.parsed.exports + suffix
+    if (resolved[exportName]) {
+      return [exportName, []]
+    }
+
+    // Initialize map for variable renamings based on bindings
+    var rename = {}
+    for (var i = 0; i < bindings.length; ++i) {
+      var binding = bindings[i]
+      rename[binding[0]] = binding[1]
+    }
+
+    // Resolve all dependencies
+    var imports = dep.parsed.imports
+    var edits = []
+    for (var i = 0; i < imports.length; ++i) {
+      var data = imports[i]
+
+      var importMaps = data.maps
+      var importName = data.name
+      var importTarget = data.target
+
+      var importBindings = Object.keys(importMaps).map(function (id) {
+        var value = importMaps[id]
+
+        // floats/ints should not be renamed
+        if (value.match(/^\d+(?:\.\d+?)?$/g)) {
+          return [id, value]
+        }
+
+        // properties (uVec.x, ray.origin, ray.origin.xy etc.) should
+        // have their host identifiers renamed
+        var parent = value.match(/^([^\.]+)\.(.+)$/)
+        if (parent) {
+          return [id, (rename[parent[1]] || (parent[1] + suffix)) + '.' + parent[2]]
+        }
+
+        return [id, rename[value] || (value + suffix)]
+      })
+
+      var importTokens = resolve(importTarget, importBindings)
+      rename[importName] = importTokens[0]
+      edits.push([data.index, importTokens[1]])
+    }
+
+    // Rename tokens
+    var parsedTokens = dep.parsed.tokens.map(copy)
+    var parsedDefs = defines(parsedTokens)
+    var tokens = descope(parsedTokens, function (local, token) {
+      if (parsedDefs[local]) return local
+      if (rename[local]) return rename[local]
+
+      return local + suffix
+    })
+
+    // Insert edits
+    edits.sort(function (a, b) {
+      return b[0] - a[0]
+    })
+
+    for (var i = 0; i < edits.length; ++i) {
+      var edit = edits[i]
+      tokens = tokens.slice(0, edit[0])
+        .concat(edit[1])
+        .concat(tokens.slice(edit[0]))
+    }
+
+    resolved[exportName] = true
+    return [exportName, tokens]
+  }
+}
+
+function glslifyPreprocessor (data) {
+  return /#pragma glslify:/.test(data)
+}
+
+function glslifyExport (data) {
+  return /#pragma glslify:\s*export\(([^\)]+)\)/.exec(data)
+}
+
+function glslifyImport (data) {
+  return /#pragma glslify:\s*([^=\s]+)\s*=\s*require\(([^\)]+)\)/.exec(data)
+}
+
+function indexBy (deps, key) {
+  return deps.reduce(function (deps, entry) {
+    deps[entry[key]] = entry
+    return deps
+  }, {})
+}
+
+function toMapping (maps) {
+  if (!maps) return false
+
+  return maps.reduce(function (mapping, defn) {
+    defn = defn.split(/\s?=\s?/g)
+
+    var expr = defn.pop()
+
+    defn.forEach(function (key) {
+      mapping[key] = expr
+    })
+
+    return mapping
+  }, {})
+}
+
+},{"./lib/topo-sort":105,"glsl-inject-defines":107,"glsl-token-defines":108,"glsl-token-depth":109,"glsl-token-descope":110,"glsl-token-scope":115,"glsl-token-string":116,"glsl-token-whitespace-trim":117,"glsl-tokenizer/string":122,"murmurhash-js/murmurhash3_gc":123,"shallow-copy":124}],105:[function(require,module,exports){
+module.exports = topoSort
+
+// Permutes the dependencies into topological order
+function topoSort (deps) {
+  // Build reversed adjacency list
+  var adj = {}
+  var inDegree = {}
+  var index = {}
+  deps.forEach(function (dep) {
+    var v = dep.id
+    var nbhd = Object.keys(dep.deps)
+    index[dep.id] = dep
+    inDegree[v] = nbhd.length
+    nbhd.forEach(function (filename) {
+      var u = dep.deps[filename]
+      if (adj[u]) {
+        adj[u].push(v)
+      } else {
+        adj[u] = [v]
+      }
+    })
+  })
+
+  // Initialize toVisit queue
+  var result = []
+  var inverse = {}
+  deps.forEach(function (dep) {
+    var v = dep.id
+    if (!adj[v]) {
+      adj[v] = []
+    }
+    if (inDegree[v] === 0) {
+      inverse[v] = result.length
+      result.push(v)
+    }
+  })
+
+  // Run BFS
+  for (var ptr = 0; ptr < result.length; ptr++) {
+    var v = result[ptr]
+    adj[v].forEach(function (u) {
+      if (--inDegree[u] === 0) {
+        inverse[u] = result.length
+        result.push(u)
+      }
+    })
+  }
+
+  if (result.length !== deps.length) {
+    throw new Error('cyclic dependency')
+  }
+
+  // Relabel dependencies
+  return result.map(function (v) {
+    var dep = index[v]
+    var deps = dep.deps
+    var ndeps = {}
+    Object.keys(deps).forEach(function (filename) {
+      ndeps[filename] = inverse[deps[filename]] | 0
+    })
+    return {
+      id: inverse[v] | 0,
+      deps: ndeps,
+      file: dep.file,
+      source: dep.source,
+      entry: dep.entry
+    }
+  })
+}
+
+},{}],106:[function(require,module,exports){
+module.exports = glslTokenInject
+
+var newline = { data: '\n', type: 'whitespace' }
+var regex = /[^\r\n]$/
+
+function glslTokenInject (tokens, newTokens) {
+  if (!Array.isArray(newTokens))
+    newTokens = [ newTokens ]
+  var start = getStartIndex(tokens)
+  var last = start > 0 ? tokens[start-1] : null
+  if (last && regex.test(last.data)) {
+    tokens.splice(start++, 0, newline)
+  }
+  tokens.splice.apply(tokens, [ start, 0 ].concat(newTokens))
+  
+  var end = start + newTokens.length
+  if (tokens[end] && /[^\r\n]$/.test(tokens[end].data)) {
+    tokens.splice(end, 0, newline)
+  }
+  return tokens
+}
+
+function getStartIndex (tokens) {
+  // determine starting index for attributes
+  var start = -1
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type === 'preprocessor') {
+      if (/^#(extension|version)/.test(token.data)) {
+        start = Math.max(start, i)
+      }
+    }
+  }
+  return start + 1
+}
+},{}],107:[function(require,module,exports){
+var tokenize = require('glsl-tokenizer')
+var stringify = require('glsl-token-string')
+var inject = require('glsl-token-inject-block')
+
+module.exports = function glslInjectDefine (source, defines) {
+  if (!defines) {
+    return source
+  }
+
+  var keys = Object.keys(defines)
+  if (keys.length === 0) {
+    return source
+  }
+
+  var tokens = tokenize(source)
+  for (var i=keys.length-1; i>=0; i--) {
+    var key = keys[i]
+    var val = String(defines[key])
+    if (val) { // allow empty value
+      val = ' ' + val
+    }
+
+    inject(tokens, {
+      type: 'preprocessor',
+      data: '#define ' + key + val
+    })
+  }
+  
+  return stringify(tokens)
+}
+
+},{"glsl-token-inject-block":106,"glsl-token-string":116,"glsl-tokenizer":122}],108:[function(require,module,exports){
+module.exports = defines
+
+function defines(tokens) {
+  var definitions = {}
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type !== 'preprocessor') continue
+    var datum = token.data.trim()
+    if (datum.indexOf('#define')) continue
+    var parts = datum.match(/#define\s+([^\s]+)(.+)?$/i)
+    if (!parts) continue
+    var name  = (parts[1] || '').trim()
+    var value = (parts[2] || '').trim()
+
+    definitions[name] = value
+  }
+
+  return definitions
+}
+
+},{}],109:[function(require,module,exports){
+module.exports = getTokenDepth
+
+function getTokenDepth(tokens) {
+  var loop  = false
+  var depth = 0
+
+  for (var i = 0; i < tokens.length; i++) {
+    loop = loop || (tokens[i].type === 'keyword' && (
+      tokens[i].data === 'for'
+    ))
+
+    switch (tokens[i].data) {
+      case '(': tokens[i].depth = loop ? depth++ : depth; break
+      case '{': tokens[i].depth = loop ? depth : depth++; loop = false; break
+      case '}': tokens[i].depth = --depth; break
+      default:  tokens[i].depth = depth
+    }
+  }
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    var index = i + 1
+    if (token.type !== 'ident' && token.type !== 'keyword') continue
+    skipArrayArguments()
+    if (tokens[index].type !== 'ident') continue
+    skipArrayArguments()
+    index++
+    if (tokens[index].data !== '(') continue
+
+    while (tokens[index] && tokens[index].data !== ';' && tokens[index].data !== '{') {
+      tokens[index++].depth++
+    }
+    if (tokens[index] && tokens[index].data === '{') tokens[index].depth++
+  }
+
+  return tokens
+
+  function skipArrayArguments() {
+    while (tokens[index] && (
+      tokens[index].type === 'whitespace' ||
+      tokens[index].data === '[' ||
+      tokens[index].data === ']' ||
+      tokens[index].data === 'integer'
+    )) index++
+  }
+}
+
+},{}],110:[function(require,module,exports){
+module.exports = glslTokenDescope
+
+function glslTokenDescope(tokens, rename) {
+  require('glsl-token-depth')(tokens)
+  require('glsl-token-scope')(tokens)
+  require('glsl-token-properties')(tokens)
+  require('glsl-token-assignments')(tokens)
+
+  var scope   = getScope(tokens)
+  var renamer = rename || defaultRenamer()
+  var map     = {}
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    var stack = token.stack
+    var name  = token.data
+
+    token.descoped = false
+
+    if (token.type !== 'ident') continue
+    if (token.property) continue
+    if (token.structMember) continue
+
+    var bound = false
+
+    for (var j = stack.length - 1; j >= 0; j--) {
+      var s = scope[stack[j]]
+      if (!s) continue
+      if (!s[name]) continue
+
+      bound = true
+
+      // exit if declaration not in top-level scope
+      if (j) break
+
+      token.descoped = token.data
+      token.data = map[name] = map[name] || renamer(name, token) || token.data
+    }
+
+    // Handle unbound variables, i.e. ones not defined anywhere
+    // in the shader source but still used.
+    if (!bound) {
+      token.descoped = token.data
+      token.data = map[name] = map[name] || renamer(name, token) || token.data
+    }
+  }
+
+  return tokens
+}
+
+function defaultRenamer() {
+  var k = 0
+
+  return function rename(name) {
+    return name + '_' + (k++).toString(36)
+  }
+}
+
+function getScope(tokens) {
+  var scope = {}
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.declaration) {
+      scope[token.scope] = scope[token.scope] || {}
+      scope[token.scope][token.data] = token
+    }
+  }
+
+  return scope
+}
+
+},{"glsl-token-assignments":113,"glsl-token-depth":109,"glsl-token-properties":114,"glsl-token-scope":115}],111:[function(require,module,exports){
+module.exports = {
+    '<<=': true
+  , '>>=': true
+  , '++': true
+  , '--': true
+  , '+=': true
+  , '-=': true
+  , '*=': true
+  , '/=': true
+  , '%=': true
+  , '&=': true
+  , '^=': true
+  , '|=': true
+  , '=': true
+}
+
+},{}],112:[function(require,module,exports){
+module.exports = {
+    'precision': true
+  , 'highp': true
+  , 'mediump': true
+  , 'lowp': true
+  , 'attribute': true
+  , 'const': true
+  , 'uniform': true
+  , 'varying': true
+  , 'break': true
+  , 'continue': true
+  , 'do': true
+  , 'for': true
+  , 'while': true
+  , 'if': true
+  , 'else': true
+  , 'in': true
+  , 'out': true
+  , 'inout': true
+  , 'true': true
+  , 'false': true
+  , 'return': true
+}
+
+},{}],113:[function(require,module,exports){
+var assignments = require('./assignments')
+var ignoredKeywords = require('./ignored')
+
+module.exports = assigns
+
+// Here be dragons. Apologies in advance for the hairy code!
+function assigns(tokens) {
+  var idx = 0
+
+  // Determine if a value has been assigned, e.g.
+  // x = 1.0;
+  // float x = 1.0;
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    var type  = token.type
+
+    token.assignment = false
+    token.declaration = false
+    if (type !== 'ident' && type !== 'builtin') continue
+    idx = i + 1
+
+    skipWhitespace(+1)
+    if (tokens[idx].type !== 'operator') continue
+    if (!assignments[tokens[idx].data]) continue
+    token.assignment = true
+  }
+
+  // Determine if a value is being defined, e.g.
+  // float x;
+  // float x, y, z;
+  // float x, y = vec3(sin(1.0 + 3.0)), z;
+  // float[3][2] x, y = vec3(sin(1.0 + 3.0)), z;
+  // float[][2] x, y = vec3(sin(1.0 + 3.0)), z;
+  // float x[2], y = vec3(sin(1.0 + 3.0)), z[4];
+  // float x(float y, float z) {};
+  // float x(float y[2], Thing[3] z) {};
+  // Thing x[2], y = Another(sin(1.0 + 3.0)), z[4];
+  for (var i = 0; i < tokens.length; i++) {
+    var datatype = tokens[i]
+    var type     = datatype.type
+    var data     = datatype.data
+
+    datatype.declaration = false
+
+    if (type === 'keyword') {
+      if (ignoredKeywords[data]) continue
+    } else
+    if (type !== 'ident') continue
+
+    idx = i + 1
+
+    skipArrayDimensions()
+    if (tokens[idx].type !== 'ident') continue
+    tokens[idx++].declaration = true
+    skipArrayDimensions()
+
+    // Function arguments/parameters
+    if (tokens[idx].data === '(') {
+      idx++
+
+      skipWhitespace(+1)
+      while (tokens[idx] && tokens[idx].data !== ')') {
+        if (tokens[idx].type !== 'keyword' && tokens[idx].type !== 'ident') break
+        idx++
+        skipWhitespace(+1)
+        if (tokens[idx].type !== 'ident') continue
+        tokens[idx++].declaration = true
+        skipWhitespace(+1)
+        skipArrayDimensions()
+        skipWhitespace(+1)
+        if (tokens[idx].data !== ',') continue
+        idx++
+        skipWhitespace(+1)
+      }
+
+      i = idx
+      continue
+    }
+
+    // Declaration Lists
+    while (tokens[idx] && tokens[idx].data !== ';') {
+      if (tokens[idx].data === ',') {
+        idx++
+        skipWhitespace(+1)
+        if (tokens[idx].declaration = tokens[idx].type === 'ident') idx++
+      } else {
+        skipWhitespace(+1)
+        skipParens()
+        skipWhitespace(+1)
+        idx++
+      }
+    }
+
+    i = idx
+  }
+
+  // Handle struct declarations:
+  // struct declaration {
+  //   float x, y, z;
+  //   Other w;
+  // } declaration;
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type !== 'keyword') continue
+    if (token.data !== 'struct') continue
+    idx = i + 1
+    skipWhitespace(+1)
+    if (tokens[idx].type !== 'ident') continue
+
+    idx++
+    skipWhitespace(+1)
+    if (tokens[idx++].data !== '{') continue
+    skipWhitespace(+1)
+
+    while (tokens[idx].type === 'ident' || tokens[idx].type === 'keyword') {
+      do {
+        idx++
+        skipWhitespace(+1)
+        tokens[idx].structMember = true
+        tokens[idx].declaration = false
+        idx++
+        skipArrayDimensions()
+      } while (tokens[idx].data === ',')
+
+      if (tokens[idx].data === ';') idx++
+      skipWhitespace()
+    }
+
+    idx++
+    skipWhitespace(+1)
+    if (tokens[idx].type !== 'ident') continue
+    tokens[idx].declaration = true
+    skipWhitespace(+1)
+
+    while (tokens[++idx].data === ',') {
+      skipWhitespace(+1)
+      idx++
+      skipWhitespace(+1)
+      if (tokens[idx].type === 'ident') tokens[idx].declaration = true
+      skipWhitespace(+1)
+    }
+  }
+
+  return tokens
+
+  function skipWhitespace(n) {
+    while (tokens[idx] && tokens[idx].type === 'whitespace') idx++
+  }
+
+  function skipArrayDimensions() {
+    while (tokens[idx] && (
+         tokens[idx].type === 'integer'
+      || tokens[idx].data === '['
+      || tokens[idx].data === ']'
+      || tokens[idx].type === 'whitespace'
+    )) idx++
+  }
+
+  function skipParens() {
+    if (tokens[idx].data !== '(') return
+    var depth = 0
+    var a = idx
+    do {
+      if (tokens[idx].data === ';') break
+      if (tokens[idx].data === '(') depth++
+      if (tokens[idx].data === ')') depth--
+    } while(depth && tokens[++idx])
+  }
+}
+
+},{"./assignments":111,"./ignored":112}],114:[function(require,module,exports){
+module.exports = properties
+
+function properties(tokens) {
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    token.property = false
+
+    if (token.type !== 'ident') continue
+
+    var j = i
+    while (tokens[--j] && tokens[j].type === 'whitespace');
+    if (!tokens[j]) continue
+    if (tokens[j].type !== 'operator') continue
+    if (tokens[j].data !== '.') continue
+
+    token.property = true
+  }
+
+  return tokens
+}
+
+},{}],115:[function(require,module,exports){
+module.exports = tokenScope
+
+function tokenScope(tokens) {
+  var stack  = [0]
+  var inc    = stack[0]
+  var ldepth = 0
+
+  if (!tokens || !tokens.length) return tokens
+  if (!('depth' in tokens[0])) {
+    throw new Error('glsl-token-scope: No scope depth defined on tokens! Use glsl-token-depth on these tokens first')
+  }
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    var depth = token.depth
+
+    if (depth > ldepth) {
+      stack.push(++inc)
+    } else
+    if (depth < ldepth) {
+      stack.splice(-1, 1)
+    }
+
+    token.scope = stack[stack.length - 1]
+    token.stack = stack.slice()
+    ldepth = token.depth
+  }
+
+  return tokens
+}
+
+},{}],116:[function(require,module,exports){
+module.exports = toString
+
+function toString(tokens) {
+  var output = []
+
+  for (var i = 0; i < tokens.length; i++) {
+    if (tokens[i].type === 'eof') continue
+    output.push(tokens[i].data)
+  }
+
+  return output.join('')
+}
+
+},{}],117:[function(require,module,exports){
+module.exports = trim
+
+function trim (tokens, everything) {
+  return trim[everything ? 'all' : 'newlines'](collapse(tokens))
+}
+
+function collapse (tokens) {
+  for (var i = 1; i < tokens.length; i++) {
+    var curr = tokens[i]
+    if (curr.type !== 'whitespace') continue
+    var prev = tokens[i - 1]
+    if (prev.type !== 'whitespace') continue
+    tokens.splice(--i, 1)
+    curr.data = prev.data + curr.data
+  }
+
+  return tokens
+}
+
+var newlines = /(?:\n|\r\n|\r){2,}/g
+
+trim.newlines = function (tokens) {
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type !== 'whitespace') continue
+    token.data = token.data.replace(newlines, '\n\n')
+  }
+
+  return tokens
+}
+
+var all = /\s+/g
+
+trim.all = function (tokens) {
+  var l = tokens.length
+
+  for (var i = 0; i < l; i++) {
+    var token = tokens[i]
+    if (token.type !== 'whitespace') continue
+    var next = tokens[i + 1]
+    var prev = tokens[i - 1]
+
+    if (next && next.type === 'preprocessor' || prev && prev.type === 'preprocessor') {
+      token.data = token.data.replace(all, '\n')
+    } else {
+      token.data = token.data.replace(all, ' ')
+
+      switch (next && next.data) {
+        case '(': case ';': case ')':
+        case '{': case '=': case '}': case ',':
+          token.data = token.data.replace(all, '')
+      }
+
+      switch (prev && prev.data) {
+        case '(': case ';': case ')':
+        case '{': case '=': case '}': case ',':
+          token.data = token.data.replace(all, '')
+      }
+    }
+  }
+
+  return tokens
+}
+
+},{}],118:[function(require,module,exports){
+arguments[4][94][0].apply(exports,arguments)
+},{"./lib/builtins":119,"./lib/literals":120,"./lib/operators":121,"dup":94}],119:[function(require,module,exports){
+arguments[4][95][0].apply(exports,arguments)
+},{"dup":95}],120:[function(require,module,exports){
+arguments[4][96][0].apply(exports,arguments)
+},{"dup":96}],121:[function(require,module,exports){
+arguments[4][97][0].apply(exports,arguments)
+},{"dup":97}],122:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"./index":118,"dup":98}],123:[function(require,module,exports){
+/**
+ * JS Implementation of MurmurHash3 (r136) (as of May 20, 2011)
+ * 
+ * @author <a href="mailto:gary.court@gmail.com">Gary Court</a>
+ * @see http://github.com/garycourt/murmurhash-js
+ * @author <a href="mailto:aappleby@gmail.com">Austin Appleby</a>
+ * @see http://sites.google.com/site/murmurhash/
+ * 
+ * @param {string} key ASCII only
+ * @param {number} seed Positive integer only
+ * @return {number} 32-bit positive integer hash 
+ */
+
+function murmurhash3_32_gc(key, seed) {
+	var remainder, bytes, h1, h1b, c1, c1b, c2, c2b, k1, i;
+	
+	remainder = key.length & 3; // key.length % 4
+	bytes = key.length - remainder;
+	h1 = seed;
+	c1 = 0xcc9e2d51;
+	c2 = 0x1b873593;
+	i = 0;
+	
+	while (i < bytes) {
+	  	k1 = 
+	  	  ((key.charCodeAt(i) & 0xff)) |
+	  	  ((key.charCodeAt(++i) & 0xff) << 8) |
+	  	  ((key.charCodeAt(++i) & 0xff) << 16) |
+	  	  ((key.charCodeAt(++i) & 0xff) << 24);
+		++i;
+		
+		k1 = ((((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16))) & 0xffffffff;
+		k1 = (k1 << 15) | (k1 >>> 17);
+		k1 = ((((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16))) & 0xffffffff;
+
+		h1 ^= k1;
+        h1 = (h1 << 13) | (h1 >>> 19);
+		h1b = ((((h1 & 0xffff) * 5) + ((((h1 >>> 16) * 5) & 0xffff) << 16))) & 0xffffffff;
+		h1 = (((h1b & 0xffff) + 0x6b64) + ((((h1b >>> 16) + 0xe654) & 0xffff) << 16));
+	}
+	
+	k1 = 0;
+	
+	switch (remainder) {
+		case 3: k1 ^= (key.charCodeAt(i + 2) & 0xff) << 16;
+		case 2: k1 ^= (key.charCodeAt(i + 1) & 0xff) << 8;
+		case 1: k1 ^= (key.charCodeAt(i) & 0xff);
+		
+		k1 = (((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16)) & 0xffffffff;
+		k1 = (k1 << 15) | (k1 >>> 17);
+		k1 = (((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16)) & 0xffffffff;
+		h1 ^= k1;
+	}
+	
+	h1 ^= key.length;
+
+	h1 ^= h1 >>> 16;
+	h1 = (((h1 & 0xffff) * 0x85ebca6b) + ((((h1 >>> 16) * 0x85ebca6b) & 0xffff) << 16)) & 0xffffffff;
+	h1 ^= h1 >>> 13;
+	h1 = ((((h1 & 0xffff) * 0xc2b2ae35) + ((((h1 >>> 16) * 0xc2b2ae35) & 0xffff) << 16))) & 0xffffffff;
+	h1 ^= h1 >>> 16;
+
+	return h1 >>> 0;
+}
+
+if(typeof module !== "undefined") {
+  module.exports = murmurhash3_32_gc
+}
+},{}],124:[function(require,module,exports){
+module.exports = function (obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    var copy;
+    
+    if (isArray(obj)) {
+        var len = obj.length;
+        copy = Array(len);
+        for (var i = 0; i < len; i++) {
+            copy[i] = obj[i];
+        }
+    }
+    else {
+        var keys = objectKeys(obj);
+        copy = {};
+        
+        for (var i = 0, l = keys.length; i < l; i++) {
+            var key = keys[i];
+            copy[key] = obj[key];
+        }
+    }
+    return copy;
+};
+
+var objectKeys = Object.keys || function (obj) {
+    var keys = [];
+    for (var key in obj) {
+        if ({}.hasOwnProperty.call(obj, key)) keys.push(key);
+    }
+    return keys;
+};
+
+var isArray = Array.isArray || function (xs) {
+    return {}.toString.call(xs) === '[object Array]';
+};
+
+},{}],125:[function(require,module,exports){
+var tokenize = require('glsl-tokenizer/string')
+var uniq     = require('uniq')
+
+module.exports = detective
+
+function detective(tokens) {
+  if (typeof tokens === 'string') tokens = tokenize(tokens)
+
+  var imports = []
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.type !== 'preprocessor') continue
+    var imported = glslifyImport(token.data)
+    if (!imported) continue
+    if (!imported[2]) continue
+
+    var path = imported[2]
+      .split(',')
+      .shift()
+      .trim()
+
+    if (path) imports.push(path)
+  }
+
+  return uniq(imports)
+}
+
+function glslifyImport(data) {
+  return /#pragma glslify:\s*([^=\s]+)\s*=\s*require\(([^\)]+)\)/.exec(data)
+}
+
+},{"glsl-tokenizer/string":130,"uniq":131}],126:[function(require,module,exports){
+arguments[4][94][0].apply(exports,arguments)
+},{"./lib/builtins":127,"./lib/literals":128,"./lib/operators":129,"dup":94}],127:[function(require,module,exports){
+arguments[4][95][0].apply(exports,arguments)
+},{"dup":95}],128:[function(require,module,exports){
+arguments[4][96][0].apply(exports,arguments)
+},{"dup":96}],129:[function(require,module,exports){
+arguments[4][97][0].apply(exports,arguments)
+},{"dup":97}],130:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"./index":126,"dup":98}],131:[function(require,module,exports){
+arguments[4][20][0].apply(exports,arguments)
+},{"dup":20}],132:[function(require,module,exports){
+module.exports = shallow
+
+function shallow(a, b, compare) {
+  var aIsArray = Array.isArray(a)
+  var bIsArray = Array.isArray(b)
+
+  if (aIsArray !== bIsArray) return false
+
+  var aTypeof = typeof a
+  var bTypeof = typeof b
+
+  if (aTypeof !== bTypeof) return false
+  if (flat(aTypeof)) return compare
+    ? compare(a, b)
+    : a === b
+
+  return aIsArray
+    ? shallowArray(a, b, compare)
+    : shallowObject(a, b, compare)
+}
+
+function shallowArray(a, b, compare) {
+  var l = a.length
+  if (l !== b.length) return false
+
+  if (compare) {
+    for (var i = 0; i < l; i++)
+      if (!compare(a[i], b[i])) return false
+  } else {
+    for (var i = 0; i < l; i++) {
+      if (a[i] !== b[i]) return false
+    }
+  }
+
+  return true
+}
+
+function shallowObject(a, b, compare) {
+  var ka = 0
+  var kb = 0
+
+  if (compare) {
+    for (var key in a) {
+      if (
+        a.hasOwnProperty(key) &&
+        !compare(a[key], b[key])
+      ) return false
+
+      ka++
+    }
+  } else {
+    for (var key in a) {
+      if (
+        a.hasOwnProperty(key) &&
+        a[key] !== b[key]
+      ) return false
+
+      ka++
+    }
+  }
+
+  for (var key in b) {
+    if (b.hasOwnProperty(key)) kb++
+  }
+
+  return ka === kb
+}
+
+function flat(type) {
+  return (
+    type !== 'function' &&
+    type !== 'object'
+  )
+}
+
+},{}],133:[function(require,module,exports){
+"use strict";
+var window = require("global/window")
+var once = require("once")
+var isFunction = require("is-function")
+var parseHeaders = require("parse-headers")
+var xtend = require("xtend")
+
+module.exports = createXHR
+createXHR.XMLHttpRequest = window.XMLHttpRequest || noop
+createXHR.XDomainRequest = "withCredentials" in (new createXHR.XMLHttpRequest()) ? createXHR.XMLHttpRequest : window.XDomainRequest
+
+forEachArray(["get", "put", "post", "patch", "head", "delete"], function(method) {
+    createXHR[method === "delete" ? "del" : method] = function(uri, options, callback) {
+        options = initParams(uri, options, callback)
+        options.method = method.toUpperCase()
+        return _createXHR(options)
+    }
+})
+
+function forEachArray(array, iterator) {
+    for (var i = 0; i < array.length; i++) {
+        iterator(array[i])
+    }
+}
+
+function isEmpty(obj){
+    for(var i in obj){
+        if(obj.hasOwnProperty(i)) return false
+    }
+    return true
+}
+
+function initParams(uri, options, callback) {
+    var params = uri
+
+    if (isFunction(options)) {
+        callback = options
+        if (typeof uri === "string") {
+            params = {uri:uri}
+        }
+    } else {
+        params = xtend(options, {uri: uri})
+    }
+
+    params.callback = callback
+    return params
+}
+
+function createXHR(uri, options, callback) {
+    options = initParams(uri, options, callback)
+    return _createXHR(options)
+}
+
+function _createXHR(options) {
+    var callback = options.callback
+    if(typeof callback === "undefined"){
+        throw new Error("callback argument missing")
+    }
+    callback = once(callback)
+
+    function readystatechange() {
+        if (xhr.readyState === 4) {
+            loadFunc()
+        }
+    }
+
+    function getBody() {
+        // Chrome with requestType=blob throws errors arround when even testing access to responseText
+        var body = undefined
+
+        if (xhr.response) {
+            body = xhr.response
+        } else if (xhr.responseType === "text" || !xhr.responseType) {
+            body = xhr.responseText || xhr.responseXML
+        }
+
+        if (isJson) {
+            try {
+                body = JSON.parse(body)
+            } catch (e) {}
+        }
+
+        return body
+    }
+
+    var failureResponse = {
+                body: undefined,
+                headers: {},
+                statusCode: 0,
+                method: method,
+                url: uri,
+                rawRequest: xhr
+            }
+
+    function errorFunc(evt) {
+        clearTimeout(timeoutTimer)
+        if(!(evt instanceof Error)){
+            evt = new Error("" + (evt || "Unknown XMLHttpRequest Error") )
+        }
+        evt.statusCode = 0
+        callback(evt, failureResponse)
+    }
+
+    // will load the data & process the response in a special response object
+    function loadFunc() {
+        if (aborted) return
+        var status
+        clearTimeout(timeoutTimer)
+        if(options.useXDR && xhr.status===undefined) {
+            //IE8 CORS GET successful response doesn't have a status field, but body is fine
+            status = 200
+        } else {
+            status = (xhr.status === 1223 ? 204 : xhr.status)
+        }
+        var response = failureResponse
+        var err = null
+
+        if (status !== 0){
+            response = {
+                body: getBody(),
+                statusCode: status,
+                method: method,
+                headers: {},
+                url: uri,
+                rawRequest: xhr
+            }
+            if(xhr.getAllResponseHeaders){ //remember xhr can in fact be XDR for CORS in IE
+                response.headers = parseHeaders(xhr.getAllResponseHeaders())
+            }
+        } else {
+            err = new Error("Internal XMLHttpRequest Error")
+        }
+        callback(err, response, response.body)
+
+    }
+
+    var xhr = options.xhr || null
+
+    if (!xhr) {
+        if (options.cors || options.useXDR) {
+            xhr = new createXHR.XDomainRequest()
+        }else{
+            xhr = new createXHR.XMLHttpRequest()
+        }
+    }
+
+    var key
+    var aborted
+    var uri = xhr.url = options.uri || options.url
+    var method = xhr.method = options.method || "GET"
+    var body = options.body || options.data || null
+    var headers = xhr.headers = options.headers || {}
+    var sync = !!options.sync
+    var isJson = false
+    var timeoutTimer
+
+    if ("json" in options) {
+        isJson = true
+        headers["accept"] || headers["Accept"] || (headers["Accept"] = "application/json") //Don't override existing accept header declared by user
+        if (method !== "GET" && method !== "HEAD") {
+            headers["content-type"] || headers["Content-Type"] || (headers["Content-Type"] = "application/json") //Don't override existing accept header declared by user
+            body = JSON.stringify(options.json)
+        }
+    }
+
+    xhr.onreadystatechange = readystatechange
+    xhr.onload = loadFunc
+    xhr.onerror = errorFunc
+    // IE9 must have onprogress be set to a unique function.
+    xhr.onprogress = function () {
+        // IE must die
+    }
+    xhr.ontimeout = errorFunc
+    xhr.open(method, uri, !sync, options.username, options.password)
+    //has to be after open
+    if(!sync) {
+        xhr.withCredentials = !!options.withCredentials
+    }
+    // Cannot set timeout with sync request
+    // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
+    // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
+    if (!sync && options.timeout > 0 ) {
+        timeoutTimer = setTimeout(function(){
+            aborted=true//IE9 may still call readystatechange
+            xhr.abort("timeout")
+            var e = new Error("XMLHttpRequest timeout")
+            e.code = "ETIMEDOUT"
+            errorFunc(e)
+        }, options.timeout )
+    }
+
+    if (xhr.setRequestHeader) {
+        for(key in headers){
+            if(headers.hasOwnProperty(key)){
+                xhr.setRequestHeader(key, headers[key])
+            }
+        }
+    } else if (options.headers && !isEmpty(options.headers)) {
+        throw new Error("Headers cannot be set on an XDomainRequest object")
+    }
+
+    if ("responseType" in options) {
+        xhr.responseType = options.responseType
+    }
+
+    if ("beforeSend" in options &&
+        typeof options.beforeSend === "function"
+    ) {
+        options.beforeSend(xhr)
+    }
+
+    xhr.send(body)
+
+    return xhr
+
+
+}
+
+function noop() {}
+
+},{"global/window":134,"is-function":135,"once":136,"parse-headers":139,"xtend":140}],134:[function(require,module,exports){
+(function (global){
+if (typeof window !== "undefined") {
+    module.exports = window;
+} else if (typeof global !== "undefined") {
+    module.exports = global;
+} else if (typeof self !== "undefined"){
+    module.exports = self;
+} else {
+    module.exports = {};
+}
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],135:[function(require,module,exports){
+module.exports = isFunction
+
+var toString = Object.prototype.toString
+
+function isFunction (fn) {
+  var string = toString.call(fn)
+  return string === '[object Function]' ||
+    (typeof fn === 'function' && string !== '[object RegExp]') ||
+    (typeof window !== 'undefined' &&
+     // IE8 and below
+     (fn === window.setTimeout ||
+      fn === window.alert ||
+      fn === window.confirm ||
+      fn === window.prompt))
+};
+
+},{}],136:[function(require,module,exports){
+module.exports = once
+
+once.proto = once(function () {
+  Object.defineProperty(Function.prototype, 'once', {
+    value: function () {
+      return once(this)
+    },
+    configurable: true
+  })
+})
+
+function once (fn) {
+  var called = false
+  return function () {
+    if (called) return
+    called = true
+    return fn.apply(this, arguments)
+  }
+}
+
+},{}],137:[function(require,module,exports){
+var isFunction = require('is-function')
+
+module.exports = forEach
+
+var toString = Object.prototype.toString
+var hasOwnProperty = Object.prototype.hasOwnProperty
+
+function forEach(list, iterator, context) {
+    if (!isFunction(iterator)) {
+        throw new TypeError('iterator must be a function')
+    }
+
+    if (arguments.length < 3) {
+        context = this
+    }
+    
+    if (toString.call(list) === '[object Array]')
+        forEachArray(list, iterator, context)
+    else if (typeof list === 'string')
+        forEachString(list, iterator, context)
+    else
+        forEachObject(list, iterator, context)
+}
+
+function forEachArray(array, iterator, context) {
+    for (var i = 0, len = array.length; i < len; i++) {
+        if (hasOwnProperty.call(array, i)) {
+            iterator.call(context, array[i], i, array)
+        }
+    }
+}
+
+function forEachString(string, iterator, context) {
+    for (var i = 0, len = string.length; i < len; i++) {
+        // no such thing as a sparse string.
+        iterator.call(context, string.charAt(i), i, string)
+    }
+}
+
+function forEachObject(object, iterator, context) {
+    for (var k in object) {
+        if (hasOwnProperty.call(object, k)) {
+            iterator.call(context, object[k], k, object)
+        }
+    }
+}
+
+},{"is-function":135}],138:[function(require,module,exports){
+
+exports = module.exports = trim;
+
+function trim(str){
+  return str.replace(/^\s*|\s*$/g, '');
+}
+
+exports.left = function(str){
+  return str.replace(/^\s*/, '');
+};
+
+exports.right = function(str){
+  return str.replace(/\s*$/, '');
+};
+
+},{}],139:[function(require,module,exports){
+var trim = require('trim')
+  , forEach = require('for-each')
+  , isArray = function(arg) {
+      return Object.prototype.toString.call(arg) === '[object Array]';
+    }
+
+module.exports = function (headers) {
+  if (!headers)
+    return {}
+
+  var result = {}
+
+  forEach(
+      trim(headers).split('\n')
+    , function (row) {
+        var index = row.indexOf(':')
+          , key = trim(row.slice(0, index)).toLowerCase()
+          , value = trim(row.slice(index + 1))
+
+        if (typeof(result[key]) === 'undefined') {
+          result[key] = value
+        } else if (isArray(result[key])) {
+          result[key].push(value)
+        } else {
+          result[key] = [ result[key], value ]
+        }
+      }
+  )
+
+  return result
+}
+},{"for-each":137,"trim":138}],140:[function(require,module,exports){
+module.exports = extend
+
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        for (var key in source) {
+            if (hasOwnProperty.call(source, key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{}],141:[function(require,module,exports){
 
 /**
  * An Array.prototype.slice.call(arguments) alternative
@@ -17237,7 +18912,7 @@ module.exports = function (args, slice, sliceEnd) {
 }
 
 
-},{}],85:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 (function (global){
 // Guard against document not being defined in non-browser environments.
 if (typeof global.document === 'undefined') {
@@ -17365,7 +19040,7 @@ var typeOf = (function () {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./init.json":86,"./types.json":87}],86:[function(require,module,exports){
+},{"./init.json":143,"./types.json":144}],143:[function(require,module,exports){
 module.exports={
   "initEvent" : [
     "type",
@@ -17432,7 +19107,7 @@ module.exports={
   ]
 }
 
-},{}],87:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 module.exports={
   "MouseEvent" : [
     "click",
@@ -17477,7 +19152,142 @@ module.exports={
   ]
 }
 
-},{}],88:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
+var addEvent = require('add-event-listener')
+var offset = require('mouse-event-offset')
+var Emitter = require('events/')
+
+function attach(opt) {
+    opt = opt||{}
+    opt.element = opt.element || window
+
+    var emitter = new Emitter()
+
+    var position = opt.position || [0, 0]
+    if (opt.touchstart !== false) {
+        addEvent(opt.element, 'mousedown', update)
+        addEvent(opt.element, 'touchstart', touchstart)
+    }
+
+    addEvent(opt.element, 'mousemove', update)
+    addEvent(opt.element, 'touchmove', touchmove)
+
+    emitter.position = position
+    emitter.dispose = dispose
+    return emitter
+
+    function touchstart(ev) {
+        var touch = ev.targetTouches[0]
+        update(ev, touch)
+    }
+
+    function touchmove(ev) {
+        var touch = ev.targetTouches[0]
+        update(ev, touch)
+    }
+
+    function update(ev, client) {
+        var pos = offset(ev, client)
+        position[0] = pos.x
+        position[1] = pos.y
+        emitter.emit('move', ev)
+    }
+
+    function dispose() {
+        addEvent.removeEventListener(opt.element, 'mousemove', update)
+        addEvent.removeEventListener(opt.element, 'mousedown', update)
+        addEvent.removeEventListener(opt.element, 'touchmove', touchmove)
+        addEvent.removeEventListener(opt.element, 'touchstart', touchstart)
+    }
+}
+
+module.exports = function(opt) {
+    return attach(opt).position
+}
+
+module.exports.emitter = function(opt) {
+    return attach(opt)
+}
+},{"add-event-listener":146,"events/":12,"mouse-event-offset":147}],146:[function(require,module,exports){
+addEventListener.removeEventListener = removeEventListener
+addEventListener.addEventListener = addEventListener
+
+module.exports = addEventListener
+
+var Events = null
+
+function addEventListener(el, eventName, listener, useCapture) {
+  Events = Events || (
+    document.addEventListener ?
+    {add: stdAttach, rm: stdDetach} :
+    {add: oldIEAttach, rm: oldIEDetach}
+  )
+  
+  return Events.add(el, eventName, listener, useCapture)
+}
+
+function removeEventListener(el, eventName, listener, useCapture) {
+  Events = Events || (
+    document.addEventListener ?
+    {add: stdAttach, rm: stdDetach} :
+    {add: oldIEAttach, rm: oldIEDetach}
+  )
+  
+  return Events.rm(el, eventName, listener, useCapture)
+}
+
+function stdAttach(el, eventName, listener, useCapture) {
+  el.addEventListener(eventName, listener, useCapture)
+}
+
+function stdDetach(el, eventName, listener, useCapture) {
+  el.removeEventListener(eventName, listener, useCapture)
+}
+
+function oldIEAttach(el, eventName, listener, useCapture) {
+  if(useCapture) {
+    throw new Error('cannot useCapture in oldIE')
+  }
+
+  el.attachEvent('on' + eventName, listener)
+}
+
+function oldIEDetach(el, eventName, listener, useCapture) {
+  el.detachEvent('on' + eventName, listener)
+}
+
+},{}],147:[function(require,module,exports){
+
+module.exports = function offset(ev, options) {
+    ev = ev || window.event;
+
+    var target = ev.currentTarget || ev.srcElement
+
+    var rect = (options && options.clientRect) || getOffset(target),
+        clientX = options && options.clientX,
+        clientY = options && options.clientY
+
+    clientX = typeof clientX === 'number' ? clientX : ev.clientX
+    clientY = typeof clientY === 'number' ? clientY : ev.clientY
+    
+    return { x: clientX - rect.left, y: clientY - rect.top }
+}
+
+
+var tmpRect = { left: 0, top: 0 }
+
+function getOffset(element) {
+    if (element === document.body || element === window) {
+        tmpRect.left = 0
+        tmpRect.top = 0
+    } else {
+        var r = element.getBoundingClientRect()
+        tmpRect.left = r.left
+        tmpRect.top = r.top
+    }
+    return tmpRect
+}
+},{}],148:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -17531,7 +19341,23 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],89:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
+arguments[4][133][0].apply(exports,arguments)
+},{"dup":133,"global/window":150,"is-function":151,"once":152,"parse-headers":155,"xtend":156}],150:[function(require,module,exports){
+arguments[4][134][0].apply(exports,arguments)
+},{"dup":134}],151:[function(require,module,exports){
+arguments[4][135][0].apply(exports,arguments)
+},{"dup":135}],152:[function(require,module,exports){
+arguments[4][136][0].apply(exports,arguments)
+},{"dup":136}],153:[function(require,module,exports){
+arguments[4][137][0].apply(exports,arguments)
+},{"dup":137,"is-function":151}],154:[function(require,module,exports){
+arguments[4][138][0].apply(exports,arguments)
+},{"dup":138}],155:[function(require,module,exports){
+arguments[4][139][0].apply(exports,arguments)
+},{"dup":139,"for-each":153,"trim":154}],156:[function(require,module,exports){
+arguments[4][140][0].apply(exports,arguments)
+},{"dup":140}],157:[function(require,module,exports){
 "use strict";
 
 module.exports = function (CodeMirror) {
@@ -17733,7 +19559,7 @@ module.exports = function (CodeMirror) {
   })();
 };
 
-},{}],90:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 "use strict";
 
 module.exports = function (CodeMirror) {
@@ -17936,7 +19762,7 @@ module.exports = function (CodeMirror) {
   });
 };
 
-},{}],91:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 "use strict";
 
 module.exports = function (CodeMirror) {
@@ -18509,7 +20335,7 @@ module.exports = function (CodeMirror) {
   CodeMirror.normalizeKeyMap(map);
 };
 
-},{}],92:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -18579,7 +20405,149 @@ var Editor = (function (_Emitter) {
   return Editor;
 })(_events2.default);
 
-},{"./editor-glsl":89,"./editor-search":90,"./editor-sublime":91,"codemirror":9,"events/":10}],93:[function(require,module,exports){
+},{"./editor-glsl":157,"./editor-search":158,"./editor-sublime":159,"codemirror":9,"events/":12}],161:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _glBigTriangle = require('gl-big-triangle');
+
+var _glBigTriangle2 = _interopRequireDefault(_glBigTriangle);
+
+var _glslifyClient = require('glslify-client');
+
+var _glslifyClient2 = _interopRequireDefault(_glslifyClient);
+
+var _touchPosition = require('touch-position');
+
+var _touchPosition2 = _interopRequireDefault(_touchPosition);
+
+var _debounce = require('debounce');
+
+var _debounce2 = _interopRequireDefault(_debounce);
+
+var _events = require('events/');
+
+var _events2 = _interopRequireDefault(_events);
+
+var _glShader = require('gl-shader');
+
+var _glShader2 = _interopRequireDefault(_glShader);
+
+var _xhr = require('xhr');
+
+var _xhr2 = _interopRequireDefault(_xhr);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = function (frag) {
+  var vert = '\n  precision mediump float;\n\n  attribute vec2 position;\n\n  void main() {\n    gl_Position = vec4(position, 1, 1);\n  }\n  ';
+
+  var value = frag;
+  var compiled;
+  var triangle;
+
+  var compile = (0, _glslifyClient2.default)(function (source, done) {
+    (0, _xhr2.default)({
+      uri: 'http://glslb.in/-/shader',
+      method: 'POST',
+      body: source
+    }, function (err, res, tree) {
+      if (err) return done(err);
+
+      try {
+        tree = JSON.parse(tree);
+      } catch (err) {
+        return done(err);
+      }
+
+      done(null, tree);
+    });
+  });
+
+  return function (gl, editor) {
+    var shape = new Float32Array(2);
+    var start = Date.now();
+    var canvas = gl.canvas;
+    var cursor = _touchPosition2.default.emitter({ element: canvas });
+
+    var shader;
+
+    triangle = triangle || (0, _glBigTriangle2.default)(gl);
+
+    editor.editor.setValue(value);
+    editor.editor.on('change', change = (0, _debounce2.default)(change, 500));
+    triangle.bind();
+
+    compile(value, function (err, source) {
+      if (err) throw err;
+      compiled = source;
+
+      if (shader) {
+        shader.update(vert, compiled);
+      } else {
+        shader = (0, _glShader2.default)(gl, vert, compiled);
+      }
+    });
+
+    return new _events2.default().on('render', render).on('dispose', dispose);
+
+    function render() {
+      if (!shader) return;
+
+      var width = canvas.width;
+      var height = canvas.height;
+
+      gl.viewport(0, 0, shape[0] = width, shape[1] = height);
+      gl.disable(gl.CULL_FACE);
+      gl.disable(gl.DEPTH_TEST);
+
+      shader.bind();
+      shader.uniforms.iGlobalTime = (Date.now() - start) / 1000;
+      shader.uniforms.iResolution = shape;
+      shader.uniforms.iMouse = cursor.position;
+      triangle.draw();
+    }
+
+    function dispose() {
+      editor.editor.off('change', change);
+      shader.dispose();
+      cursor.dispose();
+      shader = null;
+    }
+
+    function change() {
+      compile(value = editor.editor.getValue(), function (err, result) {
+        try {
+          if (err) throw err;
+          shader.update(vert, compiled = result);
+        } catch (e) {
+          console.clear();
+          console.warn(e.message);
+        }
+      });
+    }
+  };
+};
+
+},{"debounce":10,"events/":12,"gl-big-triangle":14,"gl-shader":79,"glslify-client":103,"touch-position":145,"xhr":149}],162:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\nfloat sphere(vec3 p, float r);\nfloat box(vec3 p, vec3 d);\nfloat torus(vec3 p, vec2 t);\nfloat cylinder(vec3 p, vec2 h);\nfloat pad(float a, float b);\n\n#pragma glslify: raytrace = require(\'glsl-raytrace\', map = doModel, steps = 90)\n#pragma glslify: normal = require(\'glsl-sdf-normal\', map = doModel)\n#pragma glslify: camera = require(\'glsl-turntable-camera\')\n#pragma glslify: atmosphere = require(\'glsl-atmosphere\')\n#pragma glslify: gauss = require(\'glsl-specular-gaussian\')\n\nvec2 doModel(vec3 p) {\n  float d = sphere(p, 1.0);\n\tfloat t = 3.0 * pad(iMouse.x / iResolution.x, 0.2);\n  float j = 0.0;\n\n  d = mix(d, box(p, vec3(1)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, torus(p, vec2(1.3, 0.4)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, cylinder(p, vec2(1.0, 0.8)), clamp(t - j++, 0.0, 1.0));\n\n  return vec2(d, 0.0);\n}\n\nfloat sphere(vec3 p, float r) {\n  return length(p) - r;\n}\n\nfloat box(vec3 p, vec3 dims) {\n  vec3 d = abs(p) - dims;\n  return min(max(d.x, max(d.y,d.z)), 0.0) + length(max(d, 0.0));\n}\n\nfloat torus(vec3 p, vec2 t) {\n  vec2 q = vec2(length(p.xz) - t.x, p.y);\n  return length(q) - t.y;\n}\n\nfloat cylinder(vec3 p, vec2 h) {\n  vec2 d = abs(vec2(length(p.xz),p.y)) - h;\n  return min(max(d.x,d.y),0.0) + length(max(d,0.0));\n}\n\nfloat pad(float a, float b) {\n  return a * (1. + b * 2.) - b;\n}\n\nvec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d ) {\n  return a + b*cos( 6.28318*(c*t+d) );\n}\n\nvec3 bg(vec3 ro, vec3 rd) {\n  float t = rd.y * 0.4 + 0.4;\n  vec3 grad = vec3(0.1, 0.05, 0.15) + palette(t\n    , vec3(0.55, 0.5, 0.5)\n    , vec3(0.6, 0.6, 0.5)\n    , vec3(0.9, 0.6, 0.45)\n    , vec3(0.03, 0.15, 0.25)\n  );\n\n  return grad;\n}\n\nvoid main() {\n  vec3 color = vec3(1.0);\n  vec3 ro, rd;\n\n  float rotation = iGlobalTime;\n  float height   = (1.0 - iMouse.y / iResolution.y * 2.0) * 5.0;\n  float dist     = 4.0;\n  camera(rotation, height, dist, iResolution.xy, ro, rd);\n\n  vec2 t = raytrace(ro, rd);\n  if (t.x > -0.5) {\n    vec3 pos = ro + rd * t.x;\n    vec3 nor = normal(pos);\n\n    color = bg(pos, reflect(nor, rd));\n\n    vec3 ldir1 = normalize(vec3(-0.25, 1, -1));\n    vec3 ldir2 = normalize(vec3(0, -0.8, 1));\n\n    color += 0.4 * gauss(ldir1, -rd, nor, 0.5);\n    color.g = smoothstep(-0.09, 1.1, color.g);\n    color.r = smoothstep(0.0, 1.02, color.r);\n    color.b += 0.015;\n  }\n\n  gl_FragColor.rgb = color.bgr;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+
+},{"./slide-fragment":161}],163:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -18663,7 +20631,7 @@ exports.default = function (gl, editor) {
   }
 };
 
-},{"bunny":6,"events/":10,"face-normals":11,"gl-geometry":12,"gl-mat4":45,"gl-shader":60,"unindex-mesh":88}],94:[function(require,module,exports){
+},{"bunny":6,"events/":12,"face-normals":13,"gl-geometry":31,"gl-mat4":64,"gl-shader":79,"unindex-mesh":148}],164:[function(require,module,exports){
 'use strict';
 
 var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -18699,7 +20667,7 @@ var Slideshow = (function () {
     _classCallCheck(this, Slideshow);
 
     this.canvas = document.createElement('canvas');
-    this.gl = this.canvas.getContext('webgl');
+    this.gl = this.canvas.getContext('webgl', { antialias: true });
     this.transitionTimer = null;
     this.enabled = true;
     this.editor = editor;
@@ -18741,8 +20709,8 @@ var Slideshow = (function () {
     }, false);
 
     var render = function render() {
-      window.requestAnimationFrame(render);
       if (_this.latestEvent) _this.latestEvent.emit('render');
+      window.requestAnimationFrame(render);
     };
 
     render();
@@ -18815,4 +20783,4 @@ var Slideshow = (function () {
   return Slideshow;
 })();
 
-},{"canvas-fit":7,"sliced":84,"synthetic-dom-events":85}]},{},[1]);
+},{"canvas-fit":7,"sliced":141,"synthetic-dom-events":142}]},{},[1]);

@@ -450,6 +450,14 @@ div.CodeMirror-dragcursors {
 
 /* Help users use markselection to safely style text background */
 span.CodeMirror-selectedtext { background: none; }
+.CodeMirror {
+  height: 100%;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
 .cm-s-dracula.CodeMirror,
 .cm-s-dracula .CodeMirror-gutters {
   background-color: #FFF !important;
@@ -473,7 +481,7 @@ span.CodeMirror-selectedtext { background: none; }
 .cm-s-dracula .CodeMirror-line::selection, .cm-s-dracula .CodeMirror-line > span::selection, .cm-s-dracula .CodeMirror-line > span > span::selection { background:#353644; background: rgba(53, 54, 68, 0.1); }
 .cm-s-dracula .CodeMirror-line::-moz-selection, .cm-s-dracula .CodeMirror-line > span::-moz-selection, .cm-s-dracula .CodeMirror-line > span > span::-moz-selection { background:#FFFFFF; background: rgba(255, 255, 255, 0.10); }
 .cm-s-dracula span.cm-comment { color: #9293B0; }
-.cm-s-dracula span.cm-string, .cm-s-dracula span.cm-string-2 { color: #f1fa8c; }
+.cm-s-dracula span.cm-string, .cm-s-dracula span.cm-string-2 { color: #FBD258; }
 .cm-s-dracula span.cm-number { color: #FF4D7D; }
 .cm-s-dracula span.cm-variable { color: #FF4D7D; }
 .cm-s-dracula span.cm-variable-2 { color: white; }
@@ -594,20 +602,26 @@ a {
   white-space: nowrap;
 }
 
-.canvas-shell {
+.canvas-wrap {
+  margin:16px;
+  margin: 1rem;
   position: relative;
-  top:16px;
-  top: 1rem;
   height: 100vh;
   width: 50vw;
   box-sizing: border-box;
+}
+
+.canvas-shell {
+  position: absolute;
+  top:16px;
+  top: 1rem; left:16px; left: 1rem; right:16px; right: 1rem; bottom:16px; bottom: 1rem;
   opacity: 0;
   -webkit-transition: opacity 0.5s 0.5s;
           transition: opacity 0.5s 0.5s;
 }
 
-.editor-enabled .canvas-shell {
-  height: 38vh;
+.editor-enabled .canvas-wrap {
+  height: 48vh;
   width: 38vw;
 }
 
@@ -617,6 +631,7 @@ a {
 
 .canvas-shell > canvas {
   background: #eee;
+  cursor: crosshair;
 }
 
 em {

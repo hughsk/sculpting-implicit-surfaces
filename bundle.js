@@ -11,6 +11,8 @@ var _editor2 = _interopRequireDefault(_editor);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+window.devicePixelRatio = 1;
+
 var editor = (0, _editor2.default)();
 var slides = (0, _slideshow2.default)(document.querySelector('main'), editor);
 
@@ -23,8 +25,13 @@ editor.editor.on('blur', function () {
 
 slides.register('triangles', require('./src/slide-triangles.js').default);
 slides.register('primitives', require('./src/slide-primitives.js').default);
+slides.register('look-ma-two-triangles', require('./src/slide-look-ma-two-triangles.js').default);
+slides.register('sphere-tracing', require('./src/slide-sphere-tracing.js').default);
+slides.register('implicits-example-circle', require('./src/slide-implicits-example-circle.js').default);
+slides.register('implicits-example-sphere', require('./src/slide-implicits-example-sphere.js').default);
+slides.register('operations-combined', require('./src/slide-operations-combined.js').default);
 
-},{"./src/editor":160,"./src/slide-primitives.js":162,"./src/slide-triangles.js":163,"./src/slideshow":164}],2:[function(require,module,exports){
+},{"./src/editor":160,"./src/slide-implicits-example-circle.js":162,"./src/slide-implicits-example-sphere.js":163,"./src/slide-look-ma-two-triangles.js":164,"./src/slide-operations-combined.js":165,"./src/slide-primitives.js":166,"./src/slide-sphere-tracing.js":167,"./src/slide-triangles.js":168,"./src/slideshow":169}],2:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -20467,6 +20474,8 @@ exports.default = function (frag) {
     });
   });
 
+  var ratio = window.devicePixelRatio || 1;
+
   return function (gl, editor) {
     var shape = new Float32Array(2);
     var start = Date.now();
@@ -20507,7 +20516,7 @@ exports.default = function (frag) {
       shader.bind();
       shader.uniforms.iGlobalTime = (Date.now() - start) / 1000;
       shader.uniforms.iResolution = shape;
-      shader.uniforms.iMouse = cursor.position;
+      shader.uniforms.iMouse = [cursor.position[0] * ratio, cursor.position[1] * ratio];
       triangle.draw();
     }
 
@@ -20545,9 +20554,84 @@ var _slideFragment2 = _interopRequireDefault(_slideFragment);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\nfloat sphere(vec3 p, float r);\nfloat box(vec3 p, vec3 d);\nfloat torus(vec3 p, vec2 t);\nfloat cylinder(vec3 p, vec2 h);\nfloat pad(float a, float b);\n\n#pragma glslify: raytrace = require(\'glsl-raytrace\', map = doModel, steps = 90)\n#pragma glslify: normal = require(\'glsl-sdf-normal\', map = doModel)\n#pragma glslify: camera = require(\'glsl-turntable-camera\')\n#pragma glslify: atmosphere = require(\'glsl-atmosphere\')\n#pragma glslify: gauss = require(\'glsl-specular-gaussian\')\n\nvec2 doModel(vec3 p) {\n  float d = sphere(p, 1.0);\n\tfloat t = 3.0 * pad(iMouse.x / iResolution.x, 0.2);\n  float j = 0.0;\n\n  d = mix(d, box(p, vec3(1)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, torus(p, vec2(1.3, 0.4)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, cylinder(p, vec2(1.0, 0.8)), clamp(t - j++, 0.0, 1.0));\n\n  return vec2(d, 0.0);\n}\n\nfloat sphere(vec3 p, float r) {\n  return length(p) - r;\n}\n\nfloat box(vec3 p, vec3 dims) {\n  vec3 d = abs(p) - dims;\n  return min(max(d.x, max(d.y,d.z)), 0.0) + length(max(d, 0.0));\n}\n\nfloat torus(vec3 p, vec2 t) {\n  vec2 q = vec2(length(p.xz) - t.x, p.y);\n  return length(q) - t.y;\n}\n\nfloat cylinder(vec3 p, vec2 h) {\n  vec2 d = abs(vec2(length(p.xz),p.y)) - h;\n  return min(max(d.x,d.y),0.0) + length(max(d,0.0));\n}\n\nfloat pad(float a, float b) {\n  return a * (1. + b * 2.) - b;\n}\n\nvec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d ) {\n  return a + b*cos( 6.28318*(c*t+d) );\n}\n\nvec3 bg(vec3 ro, vec3 rd) {\n  float t = rd.y * 0.4 + 0.4;\n  vec3 grad = vec3(0.1, 0.05, 0.15) + palette(t\n    , vec3(0.55, 0.5, 0.5)\n    , vec3(0.6, 0.6, 0.5)\n    , vec3(0.9, 0.6, 0.45)\n    , vec3(0.03, 0.15, 0.25)\n  );\n\n  return grad;\n}\n\nvoid main() {\n  vec3 color = vec3(1.0);\n  vec3 ro, rd;\n\n  float rotation = iGlobalTime;\n  float height   = (1.0 - iMouse.y / iResolution.y * 2.0) * 5.0;\n  float dist     = 4.0;\n  camera(rotation, height, dist, iResolution.xy, ro, rd);\n\n  vec2 t = raytrace(ro, rd);\n  if (t.x > -0.5) {\n    vec3 pos = ro + rd * t.x;\n    vec3 nor = normal(pos);\n\n    color = bg(pos, reflect(nor, rd));\n\n    vec3 ldir1 = normalize(vec3(-0.25, 1, -1));\n    vec3 ldir2 = normalize(vec3(0, -0.8, 1));\n\n    color += 0.4 * gauss(ldir1, -rd, nor, 0.5);\n    color.g = smoothstep(-0.09, 1.1, color.g);\n    color.r = smoothstep(0.0, 1.02, color.r);\n    color.b += 0.015;\n  }\n\n  gl_FragColor.rgb = color.bgr;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\n\n#pragma glslify: square = require(\'glsl-square-frame\')\n\nvec3 draw_line(float d, float thickness) {\n  const float aa = 2.5;\n  return vec3(smoothstep(0.0, aa / iResolution.y, max(0.0, abs(d) - thickness)));\n}\n\nfloat shape_line(vec2 p, vec2 a, vec2 b) {\n  vec2 dir = b - a;\n  return abs(dot(normalize(vec2(dir.y, -dir.x)), a - p));\n}\n\nfloat shape_segment(vec2 p, vec2 a, vec2 b) {\n  float d = shape_line(p, a, b);\n  float d0 = dot(p - b, b - a);\n  float d1 = dot(p - a, b - a);\n  return d1 < 0.0 ? length(a - p) : d0 > 0.0 ? length(b - p) : d;\n}\n\nvoid main() {\n  vec3 color = vec3(1.0);\n  vec2 uv = square(iResolution.xy, gl_FragCoord.xy) * 1.2;\n  vec3 lineColor = vec3(0, 0.175, 1);\n\n  float t = length(uv) - 1.0;\n\n  color *= draw_line(uv.x, 0.00125);\n  color *= draw_line(uv.y, 0.00125);\n  color -= lineColor * (1.0 - draw_line(t, 0.0035));\n\n  gl_FragColor.rgb = color.bgr;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
 
 },{"./slide-fragment":161}],163:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\n\n#pragma glslify: raytrace = require(\'glsl-raytrace\', map = doModel, steps = 90)\n#pragma glslify: normal = require(\'glsl-sdf-normal\', map = doModel)\n#pragma glslify: camera = require(\'glsl-turntable-camera\')\n#pragma glslify: gauss = require(\'glsl-specular-gaussian\')\n#pragma glslify: square = require(\'glsl-square-frame\')\n\nfloat cylinder(vec3 p, vec3 c) {\n  return length(p.xz-c.xy)-c.z;\n}\n\nvec2 oUnion(vec2 a, vec2 b) {\n  return a.x < b.x ? a : b;\n}\n\nvec2 doModel(vec3 p) {\n  vec2 sphere = vec2(length(p) - 1., 0.0);\n  float axes = 9999.;\n\n  axes = min(axes, cylinder(p.xyz, vec3(0, 0, 0.02)));\n  axes = min(axes, cylinder(p.yxz, vec3(0, 0, 0.02)));\n  axes = min(axes, cylinder(p.xzy, vec3(0, 0, 0.02)));\n\n  return oUnion(sphere, vec2(axes, 1.0));\n}\n\nvec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d ) {\n  return a + b*cos( 6.28318*(c*t+d) );\n}\n\nvec3 bg(vec3 ro, vec3 rd) {\n  float t = rd.y * 0.4 + 0.4;\n  vec3 grad = vec3(0.1, 0.05, 0.15) + palette(t\n    , vec3(0.55, 0.5, 0.5)\n    , vec3(0.6, 0.6, 0.5)\n    , vec3(0.9, 0.6, 0.45)\n    , vec3(0.03, 0.15, 0.25)\n  );\n\n  return grad;\n}\n\nvoid main() {\n  vec2 uv = square(iResolution.xy);\n  vec3 color = vec3(1.0);\n  vec3 ro, rd;\n\n  float rotation = iMouse.x / iResolution.x * 12.56;\n  float height   = (1.0 - iMouse.y / iResolution.y * 2.0) * 5.0;\n  float dist     = 4.0;\n  camera(rotation, height, dist, iResolution.xy, ro, rd);\n\n  vec2 t = raytrace(ro, rd);\n  if (t.x > -0.5) {\n    if (t.y == 1.0) {\n      color = vec3(0, -0.1, 0.05);\n    } else {\n      vec3 pos = ro + rd * t.x;\n      vec3 nor = normal(pos);\n\n      color = reflect(nor, rd) * 0.5 + 0.5;\n\n      vec3 ldir1 = normalize(vec3(-0.25, 1, -1));\n      vec3 ldir2 = normalize(vec3(0, -0.8, 1));\n\n      color += 0.4 * gauss(ldir1, -rd, nor, 0.175);\n      color = pow(color, vec3(0.7575));\n    }\n  }\n\n  color += pow(dot(uv, uv * 0.8), 1.5);\n\n  gl_FragColor.rgb = color.rgb;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+
+},{"./slide-fragment":161}],164:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\n\n#pragma glslify: square = require(\'glsl-square-frame\')\n\nvec3 draw_line(float d, float thickness) {\n  const float aa = 2.0;\n  return vec3(smoothstep(0.0, aa / iResolution.y, max(0.0, abs(d) - thickness)));\n}\n\nfloat shape_line(vec2 p, vec2 a, vec2 b) {\n  vec2 dir = b - a;\n  return abs(dot(normalize(vec2(dir.y, -dir.x)), a - p));\n}\n\nfloat shape_segment(vec2 p, vec2 a, vec2 b) {\n  float d = shape_line(p, a, b);\n  float d0 = dot(p - b, b - a);\n  float d1 = dot(p - a, b - a);\n  return d1 < 0.0 ? length(a - p) : d0 > 0.0 ? length(b - p) : d;\n}\n\nfloat box(vec2 p, vec2 b) {\n  vec2 d = abs(p) - b;\n  return min(max(d.x,d.y),0.0) + length(max(d,0.0));\n}\n\nvoid main() {\n  vec3 color = vec3(1.0);\n  vec2 uv = square(iResolution.xy, gl_FragCoord.xy);\n  vec2 suv = square(iResolution.xy, floor(gl_FragCoord.xy / 16.0) * 16.);\n  float index = (suv.x * 2.0 + 1.0) + (suv.y * 2.0 + 1.0) * (square(iResolution.xy, floor(iResolution.xy / 16.0) * 16.).x * 2.0 + 1.0);\n\n  if (abs(uv.x) < 1.2 && abs(uv.y) < 0.8) {\n    if (index + 5. < mod(iGlobalTime * 5., 25.)) {\n      color = vec3(abs(suv), 1);\n    }\n  }\n\n  color *= draw_line(box(uv, vec2(1.2, 0.8)), 0.00125);\n  color *= draw_line(shape_segment(uv, -vec2(1.2, 0.8), vec2(1.2, 0.8)), 0.00125);\n\n  gl_FragColor.rgb = color.bgr;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+
+},{"./slide-fragment":161}],165:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\n\nvec2 calcRayIntersection(vec3 rayOrigin, vec3 rayDir, float maxd, float precis) {\n  float latest = precis * 2.0;\n  float dist   = +0.0;\n  float type   = -1.0;\n  vec2  res    = vec2(-1.0, -1.0);\n\n  for (int i = 0; i < 70; i++) {\n    if (latest < precis || dist > maxd) break;\n\n    vec2 result = doModel(rayOrigin + rayDir * dist);\n\n    latest = result.x;\n    type   = result.y;\n    dist  += latest;\n  }\n\n  if (dist < maxd) {\n    res = vec2(dist, type);\n  }\n\n  return res;\n}\n\nvec2 calcRayIntersection(vec3 rayOrigin, vec3 rayDir) {\n  return calcRayIntersection(rayOrigin, rayDir, 20.0, 0.001);\n}\n\nvec3 calcNormal(vec3 pos, float eps) {\n  const vec3 v1 = vec3( 1.0,-1.0,-1.0);\n  const vec3 v2 = vec3(-1.0,-1.0, 1.0);\n  const vec3 v3 = vec3(-1.0, 1.0,-1.0);\n  const vec3 v4 = vec3( 1.0, 1.0, 1.0);\n\n  return normalize( v1 * doModel( pos + v1*eps ).x +\n                    v2 * doModel( pos + v2*eps ).x +\n                    v3 * doModel( pos + v3*eps ).x +\n                    v4 * doModel( pos + v4*eps ).x );\n}\n\nvec3 calcNormal(vec3 pos) {\n  return calcNormal(pos, 0.002);\n}\n\nvec2 squareFrame(vec2 screenSize, vec2 coord) {\n  vec2 position = 2.0 * (coord.xy / screenSize.xy) - 1.0;\n  position.x *= screenSize.x / screenSize.y;\n  return position;\n}\n\nmat3 calcLookAtMatrix(vec3 origin, vec3 target, float roll) {\n  vec3 rr = vec3(sin(roll), cos(roll), 0.0);\n  vec3 ww = normalize(target - origin);\n  vec3 uu = normalize(cross(ww, rr));\n  vec3 vv = normalize(cross(uu, ww));\n\n  return mat3(uu, vv, ww);\n}\n\nvec3 getRay(mat3 camMat, vec2 screenPos, float lensLength) {\n  return normalize(camMat * vec3(screenPos, lensLength));\n}\n\nvec3 getRay(vec3 origin, vec3 target, vec2 screenPos, float lensLength) {\n  mat3 camMat = calcLookAtMatrix(origin, target, 0.0);\n  return getRay(camMat, screenPos, lensLength);\n}\n\nvoid orbitCamera(\n  in float camAngle,\n  in float camHeight,\n  in float camDistance,\n  in vec2 screenResolution,\n  out vec3 rayOrigin,\n  out vec3 rayDirection,\n  in vec2 coord\n) {\n  vec2 screenPos = squareFrame(screenResolution, coord);\n  vec3 rayTarget = vec3(0.0);\n\n  rayOrigin = vec3(\n    camDistance * sin(camAngle),\n    camHeight,\n    camDistance * cos(camAngle)\n  );\n\n  rayDirection = getRay(rayOrigin, rayTarget, screenPos, 2.0);\n}\n\nfloat sdBox(vec3 position, vec3 dimensions) {\n  vec3 d = abs(position) - dimensions;\n\n  return min(max(d.x, max(d.y,d.z)), 0.0) + length(max(d, 0.0));\n}\n\nfloat gaussianSpecular(\n  vec3 lightDirection,\n  vec3 viewDirection,\n  vec3 surfaceNormal,\n  float shininess) {\n  vec3 H = normalize(lightDirection + viewDirection);\n  float theta = acos(dot(H, surfaceNormal));\n  float w = theta / shininess;\n  return exp(-w*w);\n}\n\nconst float PI = 3.14159265359;\n\nvec2 rotate2D(vec2 p, float a) {\n return p * mat2(cos(a), -sin(a), sin(a),  cos(a));\n}\n\nvec3 palette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {\n  return a + b * cos(6.28318 * (c * t + d));\n}\n\nvec3 gradient(float t) {\n  return palette(t,\n    vec3(0.5),\n    vec3(0.5),\n    vec3(0.5, 0.25, 0.39),\n    vec3(0.35, 0.25, 0.15)\n  );\n}\n\nfloat modAngle(inout vec2 p, float a) {\n  float a1 = atan(p.y, p.x);\n  float a2 = mod(a1 + a * 0.5, a) - a * 0.5;\n\n  p = vec2(cos(a2), sin(a2)) * length(p);\n\n  return mod(floor(a1 / a + 0.5), 2.0 * PI / a);\n}\n\nfloat modRot(inout vec2 p, float i) {\n  return modAngle(p, 2.0 * PI / i);\n}\n\nvec2 doModel(vec3 p) {\n  float off2 = iGlobalTime * -0.5 + sin(iGlobalTime * 2.) * 0.4;\n  float off1 = 1.7 + sin(-iGlobalTime * 3.) * .25;\n  float bsize = 0.1 - pow(abs(p.y / off1), 20.05) * 0.15;\n  float d = length(p) - 1.;\n\n  d += sin((p.x * p.y * p.z) * 10. - iGlobalTime * 5.) * 0.025;\n  d = min(d, length(abs(p) - vec3(0, off1, 0)) - 0.3);\n\n  modRot(p.xz, 8.0);\n  p.yx = rotate2D(p.yx, off2);\n  modRot(p.yx, 6.0);\n\n  p.xz = rotate2D(p.xz, iGlobalTime * 2. + sin(iGlobalTime * 2.) * 2.);\n  float d2 = sdBox(p - vec3(0, off1, 0), vec3(bsize)) - 0.02;\n\n  d = min(d, d2);\n\n  return vec2(d, 0.0);\n}\n\nvec3 bg(vec3 ro, vec3 rd) {\n  return gradient(rd.y);\n}\n\nvoid mainImage(out vec4 fragColor, in vec2 fragCoord) {\n  vec3 ro, rd;\n\n  vec2  uv       = squareFrame(iResolution.xy, fragCoord.xy);\n  float rotation = iGlobalTime * 0.85;\n  float height   = 0.1;\n  float dist     = 4.5;\n\n  orbitCamera(rotation, height, dist, iResolution.xy, ro, rd, fragCoord.xy);\n\n  vec3 color = mix(bg(ro, rd) * 1.5, vec3(1), 0.125);\n  vec2 t = calcRayIntersection(ro, rd, 8., 0.005);\n  if (t.x > -0.5) {\n    vec3 pos = ro + rd * t.x;\n    vec3 nor = calcNormal(pos);\n    color = bg(pos, reflect(rd, nor));\n    color += gaussianSpecular(vec3(0, 1, 0), -rd, nor, 0.415) * 1.0;\n  }\n\n  color = mix(color, vec3(1), 0.5);\n  color -= dot(uv, uv * 0.155) * vec3(0.5, 1, 0.7) * 0.9;\n  color.r = smoothstep(0.1, 0.9, color.r);\n  color.g = smoothstep(0.0, 1.1, color.g);\n  color.b = smoothstep(0.05, 1.0, color.b);\n\n  fragColor.rgb = color;\n  fragColor.a   = 1.0;\n}\n\nvoid main() {\n  vec4 color = vec4(0);\n\n  mainImage(color, gl_FragCoord.xy);\n  gl_FragColor = color;\n}\n'.trim());
+
+},{"./slide-fragment":161}],166:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\nvec2 doModel(vec3 p);\nfloat sphere(vec3 p, float r);\nfloat box(vec3 p, vec3 d);\nfloat torus(vec3 p, vec2 t);\nfloat cylinder(vec3 p, vec2 h);\nfloat pad(float a, float b);\n\n#pragma glslify: raytrace = require(\'glsl-raytrace\', map = doModel, steps = 90)\n#pragma glslify: normal = require(\'glsl-sdf-normal\', map = doModel)\n#pragma glslify: camera = require(\'glsl-turntable-camera\')\n#pragma glslify: gauss = require(\'glsl-specular-gaussian\')\n\nvec2 doModel(vec3 p) {\n  float d = sphere(p, 1.0);\n\tfloat t = 3.0 * pad(iMouse.x / iResolution.x, 0.2);\n  float j = 0.0;\n\n  d = mix(d, box(p, vec3(1)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, torus(p, vec2(1.3, 0.4)), clamp(t - j++, 0.0, 1.0));\n  d = mix(d, cylinder(p, vec2(1.0, 0.8)), clamp(t - j++, 0.0, 1.0));\n\n  return vec2(d, 0.0);\n}\n\nfloat sphere(vec3 p, float r) {\n  return length(p) - r;\n}\n\nfloat box(vec3 p, vec3 dims) {\n  vec3 d = abs(p) - dims;\n  return min(max(d.x, max(d.y,d.z)), 0.0) + length(max(d, 0.0));\n}\n\nfloat torus(vec3 p, vec2 t) {\n  vec2 q = vec2(length(p.xz) - t.x, p.y);\n  return length(q) - t.y;\n}\n\nfloat cylinder(vec3 p, vec2 h) {\n  vec2 d = abs(vec2(length(p.xz),p.y)) - h;\n  return min(max(d.x,d.y),0.0) + length(max(d,0.0));\n}\n\nfloat pad(float a, float b) {\n  return a * (1. + b * 2.) - b;\n}\n\nvec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d ) {\n  return a + b*cos( 6.28318*(c*t+d) );\n}\n\nvec3 bg(vec3 ro, vec3 rd) {\n  float t = rd.y * 0.4 + 0.4;\n  vec3 grad = vec3(0.1, 0.05, 0.15) + palette(t\n    , vec3(0.55, 0.5, 0.5)\n    , vec3(0.6, 0.6, 0.5)\n    , vec3(0.9, 0.6, 0.45)\n    , vec3(0.03, 0.15, 0.25)\n  );\n\n  return grad;\n}\n\nvoid main() {\n  vec3 color = vec3(1.0);\n  vec3 ro, rd;\n\n  float rotation = iGlobalTime;\n  float height   = (1.0 - iMouse.y / iResolution.y * 2.0) * 5.0;\n  float dist     = 4.0;\n  camera(rotation, height, dist, iResolution.xy, ro, rd);\n\n  vec2 t = raytrace(ro, rd);\n  if (t.x > -0.5) {\n    vec3 pos = ro + rd * t.x;\n    vec3 nor = normal(pos);\n\n    color = bg(pos, reflect(nor, rd));\n\n    vec3 ldir1 = normalize(vec3(-0.25, 1, -1));\n    vec3 ldir2 = normalize(vec3(0, -0.8, 1));\n\n    color += 0.4 * gauss(ldir1, -rd, nor, 0.5);\n    color.g = smoothstep(-0.09, 1.1, color.g);\n    color.r = smoothstep(0.0, 1.02, color.r);\n    color.b += 0.015;\n  }\n\n  gl_FragColor.rgb = color.bgr;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+
+},{"./slide-fragment":161}],167:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slideFragment = require('./slide-fragment');
+
+var _slideFragment2 = _interopRequireDefault(_slideFragment);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.default = (0, _slideFragment2.default)('\nprecision mediump float;\n\nuniform float iGlobalTime;\nuniform vec2  iResolution;\nuniform vec2  iMouse;\n\n#define TRACE_STEPS 1\n//#define TRACE_RAY\n\n// 0 = Distance Field Display\n// 1 = Raymarched Edges\n// 2 = Resulting Solid\n// 3 = Distance Field Polarity\n#define DISPLAY 0\n\n// 0 = Sine Wave\n// 1 = Circle\n// 2 = Offset Circle\n// 3 = Circle Join\n// 4 = Smooth Circle Join\n// 5 = Chamfer Circle Join\n#define SCENE 1\n\n#if SCENE == 0\n  #define SAMPLER(p) shape_sine(p)\n#endif\n#if SCENE == 1\n  #define SAMPLER(p) shape_circle(p)\n#endif\n#if SCENE == 2\n  #define SAMPLER(p) shape_circle(p + vec2(0.7, 0))\n#endif\n#if SCENE == 3\n  #define SAMPLER(p) min(shape_circle(p - vec2(cos(iGlobalTime))), shape_circle(p + vec2(sin(iGlobalTime), 0)))\n#endif\n#if SCENE == 4\n  #define SAMPLER(p) shape_circles_smin(p, iGlobalTime * 0.5)\n#endif\n#if SCENE == 5\n  #define SAMPLER(p) shape_circles_chamfer(p, iGlobalTime * 0.5)\n#endif\n\n#pragma glslify: chamfer = require(\'glsl-combine-chamfer\')\n#pragma glslify: smin = require(\'glsl-smooth-min/poly\')\n#pragma glslify: square = require(\'glsl-square-frame\')\n#pragma glslify: pi = require(\'glsl-pi\')\n\nfloat time = iGlobalTime;\n\nvec3 palette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {\n  return a + b * cos(6.28318 * (c * t + d));\n}\n\n// r^2 = x^2 + y^2\n// r = sqrt(x^2 + y^2)\n// r = length([x y])\n// 0 = length([x y]) - r\nfloat shape_circle(vec2 p) {\n  return length(p) - 0.5;\n}\n\n// y = sin(5x + t) / 5\n// 0 = sin(5x + t) / 5 - y\nfloat shape_sine(vec2 p) {\n  return p.y - sin(p.x * 5.0 + time) * 0.2;\n}\n\nfloat shape_box2d(vec2 p, vec2 b) {\n  vec2 d = abs(p) - b;\n  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));\n}\n\nfloat shape_line(vec2 p, vec2 a, vec2 b) {\n  vec2 dir = b - a;\n  return abs(dot(normalize(vec2(dir.y, -dir.x)), a - p));\n}\n\nfloat shape_segment(vec2 p, vec2 a, vec2 b) {\n  float d = shape_line(p, a, b);\n  float d0 = dot(p - b, b - a);\n  float d1 = dot(p - a, b - a);\n  return d1 < 0.0 ? length(a - p) : d0 > 0.0 ? length(b - p) : d;\n}\n\nfloat shape_circles_smin(vec2 p, float t) {\n  return smin(shape_circle(p - vec2(cos(t))), shape_circle(p + vec2(sin(t), 0)), 0.8);\n}\n\nfloat shape_circles_chamfer(vec2 p, float t) {\n  return chamfer(shape_circle(p - vec2(cos(t))), shape_circle(p + vec2(sin(t), 0)), 0.7);\n}\n\nvec3 draw_line(float d, float thickness) {\n  const float aa = 3.0;\n  return vec3(smoothstep(0.0, aa / iResolution.y, max(0.0, abs(d) - thickness)));\n}\n\nvec3 draw_line(float d) {\n  return draw_line(d, 0.0025);\n}\n\nfloat draw_solid(float d) {\n  return smoothstep(0.0, 3.0 / iResolution.y, max(0.0, d));\n}\n\nvec3 draw_polarity(float d, vec2 p) {\n  p += iGlobalTime * -0.1 * sign(d) * vec2(0, 1);\n  p = mod(p + 0.06125, 0.125) - 0.06125;\n  float s = sign(d) * 0.5 + 0.5;\n  float base = draw_solid(d);\n  float neg = shape_box2d(p, vec2(0.045, 0.0085) * 0.5);\n  float pos = shape_box2d(p, vec2(0.0085, 0.045) * 0.5);\n  pos = min(pos, neg);\n  float pol = mix(neg, pos, s);\n\n  float amp = abs(base - draw_solid(pol)) - 0.9 * s;\n\n  return vec3(1.0 - amp);\n}\n\nvec3 draw_distance(float d, vec2 p) {\n  float t = clamp(d * 0.85, 0.0, 1.0);\n  vec3 grad = mix(vec3(1, 0.8, 0.5), vec3(0.3, 0.8, 1), t);\n\n  float d0 = abs(1.0 - draw_line(mod(d + 0.1, 0.2) - 0.1).x);\n  float d1 = abs(1.0 - draw_line(mod(d + 0.025, 0.05) - 0.025).x);\n  float d2 = abs(1.0 - draw_line(d).x);\n  vec3 rim = vec3(max(d2 * 0.85, max(d0 * 0.25, d1 * 0.06125)));\n\n  grad -= rim;\n  grad -= mix(vec3(0.05, 0.35, 0.35), vec3(0.0), draw_solid(d));\n\n  return grad;\n}\n\nvec3 draw_trace(float d, vec2 p, vec2 ro, vec2 rd) {\n  vec3 col = vec3(0);\n  vec3 line = vec3(1, 1, 1);\n  vec2 _ro = ro;\n\n  for (int i = 0; i < TRACE_STEPS; i++) {\n    float t = SAMPLER(ro);\n    col += 0.8 * line * (1.0 - draw_line(length(p.xy - ro) - abs(t), 0.));\n    col += 0.2 * line * (1.0 - draw_solid(length(p.xy - ro) - abs(t) + 0.02));\n    col += line * (1.0 - draw_solid(length(p.xy - ro) - 0.015));\n    ro += rd * t;\n    if (t < 0.01) break;\n  }\n\n \t#ifdef TRACE_RAY\n    col += 1.0 - line * draw_line(shape_segment(p, _ro, ro), 0.);\n \t#endif\n\n  return col;\n}\n\nvoid main() {\n  float t = iGlobalTime * 0.5;\n  vec2 uv = square(iResolution.xy);\n  float d;\n  vec3 col;\n  vec2 ro = vec2(iMouse.xy / iResolution.xy) * 2.0 - 1.0;\n  ro.y = -ro.y;\n  ro.x *= square(iResolution.xy, iResolution.xy).x;\n\n  vec2 rd = normalize(-ro);\n\n  d = SAMPLER(uv);\n\n  #if DISPLAY == 0\n    col = vec3(draw_distance(d, uv.xy));\n    col -= vec3(draw_trace(d, uv.xy, ro, rd));\n  #endif\n  #if DISPLAY == 1\n    col = vec3(draw_line(d));\n    col += vec3(1, 0.25, 0) * vec3(draw_trace(d, uv.xy, ro, rd));\n  #endif\n  #if DISPLAY == 2\n    col = vec3(draw_solid(d));\n  #endif\n  #if DISPLAY == 3\n    col = vec3(draw_polarity(d, uv.xy));\n  #endif\n\n  gl_FragColor.rgb = col;\n  gl_FragColor.a   = 1.0;\n}\n'.trim());
+
+},{"./slide-fragment":161}],168:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -20631,7 +20715,7 @@ exports.default = function (gl, editor) {
   }
 };
 
-},{"bunny":6,"events/":12,"face-normals":13,"gl-geometry":31,"gl-mat4":64,"gl-shader":79,"unindex-mesh":148}],164:[function(require,module,exports){
+},{"bunny":6,"events/":12,"face-normals":13,"gl-geometry":31,"gl-mat4":64,"gl-shader":79,"unindex-mesh":148}],169:[function(require,module,exports){
 'use strict';
 
 var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
@@ -20680,7 +20764,7 @@ var Slideshow = (function () {
     this.latestEvent = null;
     this.latestName = null;
 
-    this.fitter = (0, _canvasFit2.default)(this.canvas);
+    this.fitter = (0, _canvasFit2.default)(this.canvas, null, window.devicePixelRatio || 1);
     this.resizeLock = false;
     this.resize();
 

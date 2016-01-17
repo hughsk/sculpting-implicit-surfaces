@@ -634,9 +634,16 @@ a {
   cursor: crosshair;
 }
 
-em {
+em a, em {
   font-style: normal;
   color:rgb(214, 214, 221);
+  -webkit-animation: none;
+          animation: none;
+}
+
+sup {
+  vertical-align: super;
+  font-size: 0.5em;
 }
 
 section > h1 {

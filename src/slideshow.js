@@ -20,7 +20,7 @@ class Slideshow {
     this.latestEvent = null
     this.latestName = null
 
-    this.fitter = Fit(this.canvas)
+    this.fitter = Fit(this.canvas, null, window.devicePixelRatio || 1)
     this.resizeLock = false
     this.resize()
 

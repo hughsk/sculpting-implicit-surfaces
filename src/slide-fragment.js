@@ -39,6 +39,8 @@ export default (frag) => {
     })
   })
 
+  const ratio = window.devicePixelRatio || 1
+
   return (gl, editor) => {
     const shape = new Float32Array(2)
     const start = Date.now()
@@ -65,8 +67,8 @@ export default (frag) => {
     })
 
     return new Emitter()
-    .on('render', render)
-    .on('dispose', dispose)
+      .on('render', render)
+      .on('dispose', dispose)
 
     function render () {
       if (!shader) return
@@ -80,7 +82,7 @@ export default (frag) => {
       shader.bind()
       shader.uniforms.iGlobalTime = (Date.now() - start) / 1000
       shader.uniforms.iResolution = shape
-      shader.uniforms.iMouse = cursor.position
+      shader.uniforms.iMouse = [cursor.position[0] * ratio, cursor.position[1] * ratio]
       triangle.draw()
     }
 

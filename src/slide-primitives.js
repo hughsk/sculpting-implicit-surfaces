@@ -17,7 +17,6 @@ float pad(float a, float b);
 #pragma glslify: raytrace = require('glsl-raytrace', map = doModel, steps = 90)
 #pragma glslify: normal = require('glsl-sdf-normal', map = doModel)
 #pragma glslify: camera = require('glsl-turntable-camera')
-#pragma glslify: atmosphere = require('glsl-atmosphere')
 #pragma glslify: gauss = require('glsl-specular-gaussian')
 
 vec2 doModel(vec3 p) {

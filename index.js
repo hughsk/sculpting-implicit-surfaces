@@ -9,3 +9,4 @@ editor.editor.on('blur', () => slides.enabled = true)
 
 slides.register('triangles', require('./src/slide-triangles.js').default)
 slides.register('primitives', require('./src/slide-primitives.js').default)
+slides.register('look-ma-two-triangles', require('./src/slide-look-ma-two-triangles.js').default)

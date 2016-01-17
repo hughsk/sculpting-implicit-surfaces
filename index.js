@@ -1,3 +1,5 @@
+window.devicePixelRatio = 1
+
 import Slider from './src/slideshow'
 import Editor from './src/editor'
 
@@ -13,3 +15,4 @@ slides.register('look-ma-two-triangles', require('./src/slide-look-ma-two-triang
 slides.register('sphere-tracing', require('./src/slide-sphere-tracing.js').default)
 slides.register('implicits-example-circle', require('./src/slide-implicits-example-circle.js').default)
 slides.register('implicits-example-sphere', require('./src/slide-implicits-example-sphere.js').default)
+slides.register('operations-combined', require('./src/slide-operations-combined.js').default)

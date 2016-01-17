@@ -36,7 +36,7 @@ float box(vec2 p, vec2 b) {
 void main() {
   vec3 color = vec3(1.0);
   vec2 uv = square(iResolution.xy, gl_FragCoord.xy);
-  vec2 suv = square(iResolution.xy, floor(gl_FragCoord.xy / 32.0) * 32.);
+  vec2 suv = square(iResolution.xy, floor(gl_FragCoord.xy / 16.0) * 16.);
   float index = (suv.x * 2.0 + 1.0) + (suv.y * 2.0 + 1.0) * (square(iResolution.xy, floor(iResolution.xy / 16.0) * 16.).x * 2.0 + 1.0);
 
   if (abs(uv.x) < 1.2 && abs(uv.y) < 0.8) {

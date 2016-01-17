@@ -40,7 +40,9 @@ void main() {
   float index = (suv.x * 2.0 + 1.0) + (suv.y * 2.0 + 1.0) * (square(iResolution.xy, floor(iResolution.xy / 16.0) * 16.).x * 2.0 + 1.0);
 
   if (abs(uv.x) < 1.2 && abs(uv.y) < 0.8) {
-    if (index + 5. < mod(iGlobalTime * 5., 25.)) color = vec3(abs(suv), 1);
+    if (index + 5. < mod(iGlobalTime * 5., 25.)) {
+      color = vec3(abs(suv), 1);
+    }
   }
 
   color *= draw_line(box(uv, vec2(1.2, 0.8)), 0.00125);

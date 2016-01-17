@@ -112,9 +112,15 @@ a {
   cursor: crosshair;
 }
 
-em {
+em a, em {
   font-style: normal;
   color: color(var(--color-fg) blend(var(--color-bg) 80%));
+  animation: none;
+}
+
+sup {
+  vertical-align: super;
+  font-size: 0.5em;
 }
 
 section > h1 {

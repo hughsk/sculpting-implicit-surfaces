@@ -7,7 +7,7 @@ export default (wrapper, editor) => new Slideshow(wrapper, editor)
 class Slideshow {
   constructor (wrapper, editor) {
     this.canvas = document.createElement('canvas')
-    this.gl = this.canvas.getContext('webgl')
+    this.gl = this.canvas.getContext('webgl', { antialias: true })
     this.transitionTimer = null
     this.enabled = true
     this.editor = editor
@@ -49,8 +49,8 @@ class Slideshow {
     }, false)
 
     const render = () => {
-      window.requestAnimationFrame(render)
       if (this.latestEvent) this.latestEvent.emit('render')
+      window.requestAnimationFrame(render)
     }
 
     render()

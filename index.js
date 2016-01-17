@@ -8,3 +8,4 @@ editor.editor.on('focus', () => slides.enabled = false)
 editor.editor.on('blur', () => slides.enabled = true)
 
 slides.register('triangles', require('./src/slide-triangles.js').default)
+slides.register('primitives', require('./src/slide-primitives.js').default)

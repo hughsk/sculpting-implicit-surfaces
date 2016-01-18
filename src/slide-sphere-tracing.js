@@ -150,9 +150,9 @@ vec3 draw_trace(float d, vec2 p, vec2 ro, vec2 rd) {
     if (t < 0.01) break;
   }
 
- 	#ifdef TRACE_RAY
+  #ifdef TRACE_RAY
     col += 1.0 - line * draw_line(shape_segment(p, _ro, ro), 0.);
- 	#endif
+  #endif
 
   return col;
 }
@@ -175,8 +175,9 @@ void main() {
     col -= vec3(draw_trace(d, uv.xy, ro, rd));
   #endif
   #if DISPLAY == 1
-    col = vec3(draw_line(d));
+    col += 1.0 - vec3(draw_line(d));
     col += vec3(1, 0.25, 0) * vec3(draw_trace(d, uv.xy, ro, rd));
+    col = 1. - col;
   #endif
   #if DISPLAY == 2
     col = vec3(draw_solid(d));
@@ -187,5 +188,4 @@ void main() {
 
   gl_FragColor.rgb = col;
   gl_FragColor.a   = 1.0;
-}
-`.trim())
+}`.trim())

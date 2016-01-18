@@ -100,7 +100,7 @@ export default (gl, editor) => {
       vec3 vdir = normalize(eye - vpos);
 
       float spec = gauss(ldir, vdir, vnorm, 0.3) * 0.65;
-      gl_FragColor = vec4(spec + normalize(vnorm) * 0.5 + 0.5, 1);
+      gl_FragColor = vec4(spec + reflect(normalize(vnorm), -vdir) * 0.5 + 0.5, 1);
     }
   `)
 

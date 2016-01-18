@@ -20,3 +20,4 @@ slides.register('operations-smin', require('./src/slide-operations-smin.js').def
 slides.register('operations-mod', require('./src/slide-operations-mod.js').default)
 slides.register('operations-mod-axial', require('./src/slide-operations-mod-axial.js').default)
 slides.register('operations-combined', require('./src/slide-operations-combined.js').default)
+slides.register('meshing', require('./src/slide-meshing.js').default)

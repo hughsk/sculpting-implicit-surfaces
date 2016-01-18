@@ -1,6 +1,6 @@
 import getBounds from 'gl-volume-bound'
+import faceNormals from 'face-normals'
 import surfaceNets from 'surface-nets'
-import Triangle from 'gl-big-triangle'
 import Client from 'glslify-client'
 import Cursor from 'touch-position'
 import unindex from 'unindex-mesh'
@@ -163,8 +163,9 @@ export default (gl, editor) => {
         if (err) throw err
 
         var mesh = surfaceNets(result, 0)
-        var norm = unindex(normals.vertexNormals(mesh.cells, mesh.positions), mesh.cells)
         var positions = unindex(mesh.positions, mesh.cells)
+        // var norm = faceNormals(positions)
+        var norm = unindex(normals.vertexNormals(mesh.cells, mesh.positions), mesh.cells)
 
         var final = Geom(gl)
           .attr('position', positions)

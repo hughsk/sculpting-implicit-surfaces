@@ -50,7 +50,7 @@ export default (gl, editor) => {
       vec3 ldir = vec3(0, 1, 0);
       float mag = max(0.0, dot(normal, ldir));
 
-      gl_FragColor = vec4(mag, mag, mag, 1);
+      gl_FragColor = vec4(mag, mag + 0.035, mag + 0.08, 1);
     }
   `)
 

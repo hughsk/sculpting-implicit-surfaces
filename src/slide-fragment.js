@@ -41,6 +41,12 @@ export default (frag) => {
 
   const ratio = window.devicePixelRatio || 1
 
+  compile(frag, (err, source) => {
+    if (err) throw err
+    if (compiled) return
+    compiled = source
+  })
+
   return (gl, editor) => {
     const shape = new Float32Array(2)
     const start = Date.now()
@@ -55,16 +61,20 @@ export default (frag) => {
     editor.editor.on('change', change = debounce(change, 500))
     triangle.bind()
 
-    compile(value, (err, source) => {
-      if (err) throw err
-      compiled = source
+    if (compiled) {
+      shader = Shader(gl, vert, compiled)
+    } else {
+      compile(value, (err, source) => {
+        if (err) throw err
+        compiled = source
 
-      if (shader) {
-        shader.update(vert, compiled)
-      } else {
-        shader = Shader(gl, vert, compiled)
-      }
-    })
+        if (shader) {
+          shader.update(vert, compiled)
+        } else {
+          shader = Shader(gl, vert, compiled)
+        }
+      })
+    }
 
     return new Emitter()
       .on('render', render)

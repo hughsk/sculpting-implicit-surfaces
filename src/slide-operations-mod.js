@@ -15,6 +15,7 @@ float sphere(vec3 p, float r);
 #pragma glslify: camera = require('glsl-turntable-camera')
 #pragma glslify: gauss = require('glsl-specular-gaussian')
 #pragma glslify: smin = require('glsl-smooth-min')
+#pragma glslify: box = require('glsl-sdf-box')
 #pragma glslify: fog = require('glsl-fog')
 
 vec2 doModel(vec3 p) {
@@ -23,6 +24,7 @@ vec2 doModel(vec3 p) {
   p.xz = mod(p.xz + period * 0.5, period) - period * 0.5;
 
   return vec2(sphere(p, 0.5), 0.0);
+  //return vec2(box(p, vec3(0.5)), 0.0);
 }
 
 float sphere(vec3 p, float r) {

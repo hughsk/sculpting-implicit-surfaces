@@ -15,6 +15,9 @@ import xhr from 'xhr'
 const frag = `
 precision mediump float;
 
+float sminP(in float a, in float b);
+float map(vec3 p);
+
 #pragma glslify: noise2 = require('glsl-noise/simplex/2d')
 #pragma glslify: noise3 = require('glsl-noise/simplex/3d')
 #pragma glslify: smin = require('glsl-smooth-min')
@@ -25,7 +28,30 @@ float geometry(vec3 p) {
   float d3 = p.y - noise2(p.xz) * 0.1 + 0.3;
   float d4 = d2 + noise3(p * 3.) * 0.05;
 
-  return max(d1, d2);
+  return min(d1, d2);
+}
+
+// Shane's "Entangled Vines" Geometry <3
+// https://www.shadertoy.com/view/MlBSDW
+float map(vec3 p) {
+  p *= 1.75;
+  p += 5.;
+  vec2 perturb = vec2(sin((p.z * 2.15 + p.x * 2.35)), cos((p.z * 1.15 + p.x * 1.25)));
+  vec2 perturb2 = vec2(cos((p.z * 1.65 + p.y * 1.75)), sin((p.z * 1.4 + p.y * 1.6)));
+  vec2 q1 = mod(p.xy + vec2(0.25, -0.5), 2.) - 1.0 + perturb*vec2(0.25, 0.5);
+  vec2 q2 = mod(p.yz + vec2(0.25, 0.25), 2.) - 1.0 - perturb*vec2(0.25, 0.3);
+  vec2 q3 = mod(p.xz + vec2(-0.25, -0.5), 2.) - 1.0 - perturb2*vec2(0.25, 0.4);
+  p = sin(p*8. + cos(p.yzx*8.));
+  float s1 = length( q1 ) - 0.24; // max(abs(q1.x), abs(q1.y)) - 0.2; // etc.
+  float s2 = length( q2 ) - 0.24;
+  float s3 = length( q3 ) - 0.24;
+  return sminP(sminP(s1, s3), s2) - p.x*p.y*p.z*0.05;
+}
+
+// Smooth minimum function. Hardcoded with the smoothing value "0.25."
+float sminP(in float a, in float b ){
+  float h = clamp(2.*(b - a) + 0.5, 0.0, 1.0);
+  return (b - 0.25*h)*(1. - h) + a*h;
 }
 `.trim()
 

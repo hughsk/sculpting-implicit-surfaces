@@ -14,7 +14,9 @@ float sphere(vec3 p, float r);
 #pragma glslify: normal = require('glsl-sdf-normal', map = doModel)
 #pragma glslify: camera = require('glsl-turntable-camera')
 #pragma glslify: gauss = require('glsl-specular-gaussian')
+#pragma glslify: ruler = require('glsl-ruler/color')
 #pragma glslify: smin = require('glsl-smooth-min')
+#pragma glslify: box = require('glsl-sdf-box')
 #pragma glslify: fog = require('glsl-fog')
 #pragma glslify: PI = require('glsl-pi')
 
@@ -61,17 +63,37 @@ vec3 bg(vec3 ro, vec3 rd) {
   return grad;
 }
 
+float intersectPlane(vec3 ro, vec3 rd, vec3 nor, float dist) {
+  float denom = dot(rd, nor);
+  float t = -(dot(ro, nor) + dist) / denom;
+
+  return t;
+}
+
 void main() {
   vec3 color = vec3(1.0);
   vec3 ro, rd;
 
   float rotation = iGlobalTime * 0.5;
-  float height   = 3.0;
+  float height   = 3.5;
   float dist     = 4.0;
   camera(rotation, height, dist, iResolution.xy, ro, rd);
 
-  vec2 t = raytrace(ro, rd);
-  if (t.x > -0.5) {
+  float u = intersectPlane(ro, rd, vec3(0, 1, 0), 0.0);
+  vec2  t = raytrace(ro, rd, 75., 0.01);
+
+  if (max(t.x, u) < 0.0) {
+    gl_FragColor = vec4(1);
+    return;
+  }
+
+  bool plane = (u > 0.0 && t.x > u) || (t.x < 0.0 && u > 0.0);
+
+  if (plane) {
+    vec3 pos = ro + rd * u;
+    vec3 nor = vec3(0, 1, 0);
+    color = ruler(doModel(pos).x);
+  } else {
     vec3 pos = ro + rd * t.x;
     vec3 nor = normal(pos);
 
@@ -83,10 +105,12 @@ void main() {
     color.g = smoothstep(-0.09, 1.1, color.g);
     color.r = smoothstep(0.0, 1.02, color.r);
     color.b += 0.015;
-    color = mix(color, vec3(1), fog(t.x, 0.1));
   }
 
-  gl_FragColor.rgb = color.bgr;
+  color = mix(color, vec3(1.5, 1.2, 1), fog(plane ? u : t.x, 0.08125));
+  color = pow(color, vec3(0.75));
+
+  gl_FragColor.rgb = color.rgb;
   gl_FragColor.a   = 1.0;
 }
 `.trim())

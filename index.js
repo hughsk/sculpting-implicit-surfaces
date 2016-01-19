@@ -21,3 +21,4 @@ slides.register('operations-mod', require('./src/slide-operations-mod.js').defau
 slides.register('operations-mod-axial', require('./src/slide-operations-mod-axial.js').default)
 slides.register('operations-combined', require('./src/slide-operations-combined.js').default)
 slides.register('meshing', require('./src/slide-meshing.js').default)
+slides.register('sdf-3d', require('./src/slide-sdf-3d.js').default)

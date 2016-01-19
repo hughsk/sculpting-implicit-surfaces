@@ -1,5 +1,3 @@
-window.devicePixelRatio = 1
-
 import Slider from './src/slideshow'
 import Editor from './src/editor'
 

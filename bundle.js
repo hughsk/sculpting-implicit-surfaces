@@ -6762,8 +6762,6 @@ var _editor2 = _interopRequireDefault(_editor);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-window.devicePixelRatio = 1;
-
 var editor = (0, _editor2.default)();
 var slides = (0, _slideshow2.default)(document.querySelector('main'), editor);
 
